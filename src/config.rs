@@ -76,7 +76,7 @@ pub struct VirtualMachine {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum IdeType {
+pub enum MediaType {
     #[serde(rename = "cd")]
     Cdrom,
     #[serde(rename = "hd")]
@@ -85,8 +85,9 @@ pub enum IdeType {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IdeDevice {
-    pub ide_type: IdeType,
+    pub media_type: MediaType,
     pub boot_index: Option<u32>,
+    pub sata_bus: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

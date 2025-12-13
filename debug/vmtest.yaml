@@ -10,14 +10,16 @@
     hd0:
       path: hda.qcow2
       device:
-        type: nvme
-        serial: "deadbeef"
+        type: ide
+        media_type: hd
+        sata_bus: sata0
+        # serial: "deadbeef"
         boot_index: 1
     cdrom0:
       path: windows.iso
       device:
         type: ide
-        ide_type: cd
+        media_type: cd
         boot_index: 2
   networks:
     net0:

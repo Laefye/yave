@@ -16,15 +16,16 @@ struct Cli {
 enum Subcommands {
     Run,
     Stop,
+    Show,
 }
 
 #[tokio::main]
 async fn main() {
     let config = Config::load(&get_config_path()).expect("Failed to load config");
-    println!("Loaded config: {:?}", config);
+    println!("Loaded config");
     let cli = Cli::parse();
     let vm = VirtualMachine::load(&cli.vm).expect("Failed to load VM config");
-    println!("Loaded VM config: {:?}", vm);
+    println!("Loaded VM config");
 
     let run = RunFactory::new(
         get_run_path(),
@@ -36,8 +37,6 @@ async fn main() {
     match cli.command {
         Subcommands::Run => {
             let args = run.build_qemu_command();
-
-            println!("QEMU arguments: {:?}", args);
 
             let mut child = Command::new(&args[0])
                 .args(&args[1..])
@@ -53,5 +52,24 @@ async fn main() {
             let qmp = qmp::client::Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
             qmp.invoke(InvokeCommand::empty("quit")).await.expect("Failed to quit");
         },
+        Subcommands::Show => {
+            println!("VM Name: {}", vm.name);
+            println!("Memory: {} MB", vm.hardware.memory);
+            println!("vCPUs: {}", vm.hardware.vcpu);
+            println!("Drives:");
+            for (id, drive) in &vm.drives {
+                println!("  ID: {}, Path: {}", id, drive.path);
+            }
+            println!("Networks:");
+            for (id, net) in &vm.networks {
+                match net {
+                    yave::config::NetworkInterface::Tap(tap) => {
+                        println!("  ID: {}, Type: Tap, Ifname: {}, MAC: {}", id, tap.ifname, tap.device.mac);
+                    },
+                }
+            }
+            let args = run.build_qemu_command();
+            println!("QEMU Command: {:?}", args.join(" "));
+        }
     }
 }

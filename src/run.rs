@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::{config::{Config, DriveDevice, VirtualMachine}, qemu::QEMU};
 
@@ -20,14 +20,34 @@ impl<'a> RunFactory<'a> {
     }
 
     fn build_drives(&self, mut qemu: QEMU) -> QEMU {
+        let mut sata_indices = HashMap::new();
+        for key in self.vm.drives.values().filter(|x| matches!(x.device, DriveDevice::Ide(_))) {
+            if let DriveDevice::Ide(ide_device) = &key.device {
+                if let Some(sata_bus) = &ide_device.sata_bus && !sata_indices.contains_key(sata_bus) {
+                    sata_indices.insert(sata_bus.clone(), 0);
+                    qemu = qemu.achi9_controller(sata_bus);
+                }
+            }
+        }
+
         for (id, drive) in &self.vm.drives {
             qemu = qemu.drive(id, &drive.path);
             qemu = match &drive.device {
                 DriveDevice::Ide(ide_device) => {
-                    qemu.ide_device(id, ide_device.boot_index, match ide_device.ide_type {
-                        crate::config::IdeType::Disk => crate::qemu::device::IdeType::Disk,
-                        crate::config::IdeType::Cdrom => crate::qemu::device::IdeType::Cdrom,
-                    })
+                    let bus = if ide_device.sata_bus.is_some() {
+                        let bus = ide_device.sata_bus.as_ref().unwrap();
+                        let index = sata_indices.get_mut(bus).unwrap();
+                        let current_index = *index;
+                        *index += 1;
+                        Some(format!("{}.{}", bus, current_index))
+                    } else {
+                        None
+                    };
+
+                    qemu.ide_device(id, ide_device.boot_index, match ide_device.media_type {
+                        crate::config::MediaType::Disk => crate::qemu::device::MediaType::Disk,
+                        crate::config::MediaType::Cdrom => crate::qemu::device::MediaType::Cdrom,
+                    }, bus.as_deref())
                 },
                 DriveDevice::Nvme(nvme_device) => {
                     qemu.nvme_device(id, nvme_device.boot_index, &nvme_device.serial)
