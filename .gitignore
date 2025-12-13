@@ -1,0 +1,5 @@
+/target
+
+# Ignore PID and socket files
+*.pid
+*.sock
