@@ -5,14 +5,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("Failed to load configuration: {0}")]
-    TOML(#[from] toml::de::Error),
+    YAML(#[from] serde_yaml::Error),
     #[error("Configuration file not found at path: {0}")]
     IO(#[from] std::io::Error),
+}
+
+fn resolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
+    if relative.as_ref().is_absolute() {
+        return relative.as_ref().to_string_lossy().to_string();
+    }
+    let base_path = base.as_ref().parent().unwrap_or(Path::new("."));
+    let resolved_path = base_path.join(relative.as_ref());
+    resolved_path.to_string_lossy().to_string()
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OVMF {
+    pub code: String,
+    pub vars: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub kvm: KVM,
+    pub ovmf: OVMF,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -22,8 +38,11 @@ pub struct KVM {
 
 impl Config {
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        let config_str = std::fs::read_to_string(path).map_err(ConfigError::from)?;
-        let config: Config = toml::from_str(&config_str).map_err(ConfigError::from)?;
+        let config_str = std::fs::read_to_string(path)?;
+        let mut config: Config = serde_yaml::from_str(&config_str)?;
+        config.kvm.bin = resolve(path, &config.kvm.bin);
+        config.ovmf.code = resolve(path, &config.ovmf.code);
+        config.ovmf.vars = resolve(path, &config.ovmf.vars);
         Ok(config)
     }
 }
@@ -32,12 +51,20 @@ impl Config {
 pub struct Hardware {
     pub memory: u32,
     pub vcpu: u32,
+    pub ovmf: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct VNC {
+    pub port: String,
+    pub password: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct VirtualMachine {
     pub name: String,
     pub hardware: Hardware,
+    pub vnc: VNC,
     pub drives: HashMap<String, Drive>,
 }
 
@@ -74,18 +101,15 @@ impl VirtualMachine {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let path = path.as_ref().to_path_buf();
         let vm_str = std::fs::read_to_string(path.clone())?;
-        let mut vm: VirtualMachine = toml::from_str(&vm_str)?;
+        let mut vm: VirtualMachine = serde_yaml::from_str(&vm_str)?;
         for (_, drive) in vm.drives.iter_mut() {
-            if Path::new(&drive.path).is_relative() {
-                let base_path = path.clone().parent().unwrap_or(Path::new(".")).to_path_buf();
-                drive.path = base_path.join(&drive.path).to_string_lossy().to_string();
-            }
+            drive.path = resolve(&path, &drive.path);
         }
         Ok(vm)
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
-        let vm_str = toml::to_string_pretty(self).unwrap();
+        let vm_str = serde_yaml::to_string(self).unwrap();
         std::fs::write(path, vm_str)?;
         Ok(())
     }

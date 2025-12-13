@@ -1,0 +1,5 @@
+kvm:
+  bin: "/usr/bin/kvm"
+ovmf:
+  code: "/usr/share/OVMF/OVMF_CODE_4M.fd"
+  vars: "/usr/share/OVMF/OVMF_VARS_4M.fd"

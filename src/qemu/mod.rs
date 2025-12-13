@@ -1,6 +1,7 @@
-pub mod arguments;
+pub mod base;
 pub mod device;
 pub mod drive;
+pub mod ovmf;
 
 pub struct QEMU {
     args: Vec<String>,

@@ -1,0 +1,22 @@
+name: vmtest
+hardware:
+  memory: 2048
+  vcpu: 2
+  ovmf: true
+vnc:
+  port: ":1"
+  password: "12345678"
+drives:
+  hd0:
+    path: hda.qcow2
+    device:
+      type: ide
+      ide_type: hd
+      boot_index: 1
+  cdrom0:
+    path: ubuntu.iso
+    device:
+      type: ide
+      ide_type: cd
+      boot_index: 2
+

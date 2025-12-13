@@ -42,16 +42,30 @@ impl<'a> RunFactory<'a> {
         &self.socket
     }
 
+    fn add_uefi(&self, mut qemu: QEMU) -> QEMU {
+        if let Some(true) = self.vm.hardware.ovmf {
+            let code = self.config.ovmf.code.clone();
+            let vars = self.config.ovmf.vars.clone();
+            qemu = qemu.ovmf(code, vars);
+        }
+        qemu
+    }
+
+    fn add_vnc(&self, qemu: QEMU) -> QEMU {
+        qemu.vnc(&self.vm.vnc.port, true)
+    }
+
     pub fn build_qemu_command(&self) -> Vec<String> {
-        let qemu = QEMU::new(&self.config.kvm.bin.clone())
+        let mut qemu = QEMU::new(&self.config.kvm.bin.clone())
             .qmp(&self.socket)
             .pidfile(&self.pidfile)
             .daemonize()
-            .vnc(":1", true)
             .name(&self.vm.name)
             .memory(self.vm.hardware.memory)
             .smp(self.vm.hardware.vcpu);
-        let qemu = self.build_drives(qemu);
+        qemu = self.build_drives(qemu);
+        qemu = self.add_uefi(qemu);
+        qemu = self.add_vnc(qemu);
         qemu.build()
     }
 }
