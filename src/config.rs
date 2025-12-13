@@ -14,7 +14,13 @@ fn resolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
     if relative.as_ref().is_absolute() {
         return relative.as_ref().to_string_lossy().to_string();
     }
-    let base_path = base.as_ref().parent().unwrap_or(Path::new("."));
+    let absolute_base;
+    if base.as_ref().is_absolute() == false {
+        absolute_base = std::env::current_dir().unwrap().join(base.as_ref());
+    } else {
+        absolute_base = base.as_ref().to_path_buf();
+    }
+    let base_path = absolute_base.parent().unwrap_or(Path::new("."));
     let resolved_path = base_path.join(relative.as_ref());
     resolved_path.to_string_lossy().to_string()
 }

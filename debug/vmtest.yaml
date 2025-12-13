@@ -1,27 +1,27 @@
-name: vmtest
-hardware:
-  memory: 2048
-  vcpu: 2
-  ovmf: true
-vnc:
-  port: ":1"
-  password: "12345678"
-drives:
-  hd0:
-    path: hda.qcow2
-    device:
-      type: nvme
-      serial: "deadbeef"
-      boot_index: 1
-  cdrom0:
-    path: ubuntu.iso
-    device:
-      type: ide
-      ide_type: cd
-      boot_index: 2
-networks:
-  net0:
-    type: tap
-    ifname: tap0
-    device:
-      mac: "52:54:00:12:34:56"
+  name: vmtest
+  hardware:
+    memory: 2048
+    vcpu: 2
+    ovmf: true
+  vnc:
+    port: ":1"
+    password: "12345678"
+  drives:
+    hd0:
+      path: hda.qcow2
+      device:
+        type: nvme
+        serial: "deadbeef"
+        boot_index: 1
+    cdrom0:
+      path: windows.iso
+      device:
+        type: ide
+        ide_type: cd
+        boot_index: 2
+  networks:
+    net0:
+      type: tap
+      ifname: tap0
+      device:
+        mac: "52:54:00:12:34:56"

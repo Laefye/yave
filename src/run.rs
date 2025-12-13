@@ -72,6 +72,7 @@ impl<'a> RunFactory<'a> {
 
     pub fn build_qemu_command(&self) -> Vec<String> {
         let mut qemu = QEMU::new(&self.config.kvm.bin.clone())
+            .enable_kvm()
             .qmp(&self.socket)
             .pidfile(&self.pidfile)
             .daemonize()

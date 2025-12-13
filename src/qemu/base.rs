@@ -5,6 +5,11 @@ use crate::qemu::{
 };
 
 impl QEMU {
+    pub fn enable_kvm(mut self) -> Self {
+        self.args.push("-enable-kvm".to_string());
+        self
+    }
+
     pub fn memory(mut self, megabytes: u32) -> Self {
         self.args.push("-m".to_string());
         self.args.push(format!("{}M", megabytes));
@@ -12,6 +17,8 @@ impl QEMU {
     }
 
     pub fn smp(mut self, cores: u32) -> Self {
+        self.args.push("-cpu".to_string());
+        self.args.push("host".to_string());
         self.args.push("-smp".to_string());
         self.args.push(cores.to_string());
         self
