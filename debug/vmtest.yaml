@@ -16,7 +16,7 @@
         # serial: "deadbeef"
         boot_index: 1
     cdrom0:
-      path: windows.iso
+      path: ubuntu.iso
       device:
         type: ide
         media_type: cd
