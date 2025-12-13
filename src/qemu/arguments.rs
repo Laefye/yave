@@ -1,22 +1,8 @@
-use std::path::{self, Path};
+use std::path::Path;
 
 use crate::qemu::{
     QEMU,
-    Error,
 };
-
-#[derive(Debug, thiserror::Error)]
-pub enum ArgumentError {
-    #[error("Failed to convert path to absolute: {0}")]
-    PathConversion(String),
-}
-
-pub fn to_absolute_path(path: &Path) -> Result<String, Error> {
-    let abs_path = path::absolute(path).map_err(
-        |e| ArgumentError::PathConversion(e.to_string())
-    )?;
-    Ok(abs_path.to_string_lossy().to_string())
-}
 
 impl QEMU {
     pub fn memory(mut self, megabytes: u32) -> Self {
@@ -31,16 +17,16 @@ impl QEMU {
         self
     }
 
-    pub fn qmp<P: AsRef<Path>>(mut self, unix: P) -> Result<Self, Error> {
+    pub fn qmp<P: AsRef<Path>>(mut self, unix: P) -> Self {
         self.args.push("-qmp".to_string());
-        self.args.push(format!("unix:{},server=on,wait=off", to_absolute_path(unix.as_ref())?));
-        Ok(self)
+        self.args.push(format!("unix:{},server=on,wait=off", unix.as_ref().to_string_lossy()));
+        self
     }
 
-    pub fn pidfile<P: AsRef<Path>>(mut self, path: P) -> Result<Self, Error> {
+    pub fn pidfile<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.args.push("-pidfile".to_string());
-        self.args.push(to_absolute_path(path.as_ref())?);
-        Ok(self)
+        self.args.push(path.as_ref().to_string_lossy().to_string());
+        self
     }
 
     pub fn daemonize(mut self) -> Self {
@@ -55,6 +41,12 @@ impl QEMU {
             vnc_arg.push_str(",password=on");
         }
         self.args.push(vnc_arg);
+        self
+    }
+
+    pub fn name(mut self, name: &str) -> Self {
+        self.args.push("-name".to_string());
+        self.args.push(name.to_string());
         self
     }
 }

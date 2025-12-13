@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufStream}, net::{UnixSocket, UnixStream}, sync::{RwLock, mpsc, oneshot}};
 
@@ -14,6 +14,8 @@ struct StreamLoop {
 }
 
 pub struct Client {
+    error: Arc<RwLock<Option<QMPError>>>,
+
     drop: mpsc::Sender<()>,
     queue: mpsc::Sender<(InvokeCommand, oneshot::Sender<Response>)>,
 }
@@ -33,19 +35,27 @@ impl Client {
             active_command: RwLock::new(None),
         };
 
+        let error = Arc::new(RwLock::new(None));
+
+        let error_in = Arc::clone(&error);
         tokio::spawn(async move {
             if let Err(e) = qmp_loop.start().await {
-                eprintln!("QMP loop error: {}", e);
+                eprintln!("QMP client error: {}", e);
+                error_in.write().await.replace(e);
             }
         });
         
         Ok(Client {
+            error: error,
             drop: drop_tx,
             queue: queue_tx,
         })
     }
 
     pub async fn invoke(&self, command: InvokeCommand) -> Result<Response, QMPError> {
+        if let Some(_) = self.error.read().await.as_ref() {
+            return Err(QMPError::Protocol("Error occurred in QMP client".to_string()));
+        }
         let (response_tx, response_rx) = oneshot::channel();
         self.queue.send((command, response_tx)).await.map_err(|_| QMPError::ChannelClosed)?;
         let response = response_rx.await.map_err(|_| QMPError::ChannelClosed)?;

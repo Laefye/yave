@@ -3,3 +3,5 @@
 # Ignore PID and socket files
 *.pid
 *.sock
+*.qcow2
+*.iso

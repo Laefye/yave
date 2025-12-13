@@ -1,12 +1,9 @@
 pub mod arguments;
+pub mod device;
+pub mod drive;
+
 pub struct QEMU {
     args: Vec<String>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Invalid QEMU argument: {0}")]
-    InvalidArgument(#[from] arguments::ArgumentError),
 }
 
 impl QEMU {

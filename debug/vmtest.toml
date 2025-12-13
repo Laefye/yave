@@ -1,0 +1,21 @@
+name = "vmtest"
+
+[hardware]
+memory = 2048
+vcpu = 2
+
+[drives.hd0]
+path = "hda.qcow2"
+
+[drives.hd0.device]
+type = "ide"
+ide_type = "hd"
+boot_index = 1
+
+[drives.cdrom0]
+path = "ubuntu.iso"
+
+[drives.cdrom0.device]
+type = "ide"
+ide_type = "cd"
+boot_index = 2
