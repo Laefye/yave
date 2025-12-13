@@ -57,6 +57,18 @@ impl<'a> RunFactory<'a> {
     fn add_vnc(&self, qemu: QEMU) -> QEMU {
         qemu.vnc(&self.vm.vnc.port, true)
     }
+    
+    fn add_networks(&self, mut qemu: QEMU) -> QEMU {
+        for (id, net) in &self.vm.networks {
+            match net {
+                crate::config::NetworkInterface::Tap(tap) => {
+                    qemu = qemu.netdev_tap(id, &tap.ifname, None, None);
+                    qemu = qemu.network_device(id, &tap.device.mac);
+                },
+            }
+        }
+        qemu
+    }
 
     pub fn build_qemu_command(&self) -> Vec<String> {
         let mut qemu = QEMU::new(&self.config.kvm.bin.clone())
@@ -66,10 +78,12 @@ impl<'a> RunFactory<'a> {
             .name(&self.vm.name)
             .memory(self.vm.hardware.memory)
             .smp(self.vm.hardware.vcpu)
-            .virtio_vga();
+            .virtio_vga()
+            .nodefaults();
         qemu = self.build_drives(qemu);
         qemu = self.add_uefi(qemu);
         qemu = self.add_vnc(qemu);
+        qemu = self.add_networks(qemu);
         qemu.build()
     }
 }

@@ -44,6 +44,11 @@ impl QEMU {
         self
     }
 
+    pub fn nodefaults(mut self) -> Self {
+        self.args.push("-nodefaults".to_string());
+        self
+    }
+
     pub fn name(mut self, name: &str) -> Self {
         self.args.push("-name".to_string());
         self.args.push(name.to_string());

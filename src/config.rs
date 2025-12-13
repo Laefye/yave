@@ -66,6 +66,7 @@ pub struct VirtualMachine {
     pub hardware: Hardware,
     pub vnc: VNC,
     pub drives: HashMap<String, Drive>,
+    pub networks: HashMap<String, NetworkInterface>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -121,3 +122,23 @@ impl VirtualMachine {
         Ok(())
     }
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NetworkDevice {
+    pub mac: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TapInterface {
+    pub ifname: String,
+    pub device: NetworkDevice,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
+pub enum NetworkInterface {
+    #[serde(rename = "tap")]
+    Tap(TapInterface),
+}
+
+

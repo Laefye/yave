@@ -19,4 +19,9 @@ drives:
       type: ide
       ide_type: cd
       boot_index: 2
-
+networks:
+  net0:
+    type: tap
+    ifname: tap0
+    device:
+      mac: "52:54:00:12:34:56"

@@ -42,4 +42,16 @@ impl QEMU {
         self.args.push("virtio-vga".to_string());
         self
     }
+
+    pub fn netdev_tap(mut self, id: &str, ifname: &str, script: Option<&str>, downscript: Option<&str>) -> Self {
+        self.args.push("-netdev".to_string());
+        self.args.push(format!("tap,id={},ifname={},script={},downscript={}", id, ifname, script.unwrap_or("no"), downscript.unwrap_or("no")));
+        self
+    }
+
+    pub fn network_device(mut self, netdev_id: &str, mac: &str) -> Self {
+        self.args.push("-device".to_string());
+        self.args.push(format!("e1000,netdev={},mac={}", netdev_id, mac));
+        self
+    }
 }
