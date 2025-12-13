@@ -29,6 +29,9 @@ impl<'a> RunFactory<'a> {
                         crate::config::IdeType::Cdrom => crate::qemu::device::IdeType::Cdrom,
                     })
                 },
+                DriveDevice::Nvme(nvme_device) => {
+                    qemu.nvme_device(id, nvme_device.boot_index, &nvme_device.serial)
+                },
             }
         }
         qemu
@@ -62,7 +65,8 @@ impl<'a> RunFactory<'a> {
             .daemonize()
             .name(&self.vm.name)
             .memory(self.vm.hardware.memory)
-            .smp(self.vm.hardware.vcpu);
+            .smp(self.vm.hardware.vcpu)
+            .virtio_vga();
         qemu = self.build_drives(qemu);
         qemu = self.add_uefi(qemu);
         qemu = self.add_vnc(qemu);
