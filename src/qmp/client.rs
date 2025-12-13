@@ -2,22 +2,22 @@ use std::{path::Path, sync::Arc};
 
 use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufStream}, net::{UnixSocket, UnixStream}, sync::{RwLock, mpsc, oneshot}};
 
-use crate::qmp::{QMPError, types::{InvokeCommand, Response}};
+use crate::qmp::{QMPError, types::{CommandResponse, InvokeCommand, Response}};
 
 struct StreamLoop {
     buffer: RwLock<BufStream<UnixStream>>,
 
     drop: RwLock<mpsc::Receiver<()>>,
-    queue: RwLock<mpsc::Receiver<(InvokeCommand, oneshot::Sender<Response>)>>,
+    queue: RwLock<mpsc::Receiver<(InvokeCommand, oneshot::Sender<CommandResponse>)>>,
 
-    active_command: RwLock<Option<oneshot::Sender<Response>>>,
+    active_command: RwLock<Option<oneshot::Sender<CommandResponse>>>,
 }
 
 pub struct Client {
     error: Arc<RwLock<Option<QMPError>>>,
 
     drop: mpsc::Sender<()>,
-    queue: mpsc::Sender<(InvokeCommand, oneshot::Sender<Response>)>,
+    queue: mpsc::Sender<(InvokeCommand, oneshot::Sender<CommandResponse>)>,
 }
 
 impl Client {
@@ -52,7 +52,7 @@ impl Client {
         })
     }
 
-    pub async fn invoke(&self, command: InvokeCommand) -> Result<Response, QMPError> {
+    pub async fn invoke(&self, command: InvokeCommand) -> Result<CommandResponse, QMPError> {
         if let Some(_) = self.error.read().await.as_ref() {
             return Err(QMPError::Protocol("Error occurred in QMP client".to_string()));
         }
@@ -72,7 +72,7 @@ impl Drop for Client {
 enum PollResult {
     Drop,
     Response(Response),
-    Queue((InvokeCommand, oneshot::Sender<Response>)),
+    Queue((InvokeCommand, oneshot::Sender<CommandResponse>)),
     Skip,
 }
 
@@ -151,9 +151,17 @@ impl StreamLoop {
                     break;
                 },
                 PollResult::Response(response) => {
-                    let mut active_command = self.active_command.write().await;
-                    if let Some(callback) = active_command.take() {
-                        callback.send(response).map_err(|_| QMPError::ChannelClosed)?;
+                    match response {
+                        Response::Greeting(_) => unreachable!(),
+                        Response::CommandResponse(response) => {
+                            let mut active_command = self.active_command.write().await;
+                            if let Some(callback) = active_command.take() {
+                                callback.send(response).map_err(|_| QMPError::ChannelClosed)?;
+                            }
+                        },
+                        Response::Event(_) => {
+                            // Ignore events for now
+                        },
                     }
                 },
                 PollResult::Queue((command, callback)) => {
