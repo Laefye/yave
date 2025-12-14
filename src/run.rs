@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::{config::{Config, DriveDevice, VirtualMachine}, qemu::QEMU};
+use qemu::QEMU;
+use crate::{config::{Config, DriveDevice, VirtualMachine}};
 
 pub struct RunFactory<'a> {
     socket: PathBuf,
@@ -29,6 +30,7 @@ impl<'a> RunFactory<'a> {
                 }
             }
         }
+        
 
         for (id, drive) in &self.vm.drives {
             qemu = qemu.drive(id, &drive.path);
@@ -43,10 +45,10 @@ impl<'a> RunFactory<'a> {
                     } else {
                         None
                     };
-
+                    
                     qemu.ide_device(id, ide_device.boot_index, match ide_device.media_type {
-                        crate::config::MediaType::Disk => crate::qemu::device::MediaType::Disk,
-                        crate::config::MediaType::Cdrom => crate::qemu::device::MediaType::Cdrom,
+                        crate::config::MediaType::Disk => qemu::device::MediaType::Disk,
+                        crate::config::MediaType::Cdrom => qemu::device::MediaType::Cdrom,
                     }, bus.as_deref())
                 },
                 DriveDevice::Nvme(nvme_device) => {

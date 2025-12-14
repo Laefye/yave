@@ -1,4 +1,4 @@
-use crate::qemu::QEMU;
+use crate::QEMU;
 
 impl QEMU {
     pub fn ovmf<C: AsRef<std::path::Path>, V: AsRef<std::path::Path>>(mut self, code: C, vars: V) -> Self {

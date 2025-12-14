@@ -2,7 +2,10 @@ use std::{path::Path, sync::Arc};
 
 use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufStream}, net::{UnixSocket, UnixStream}, sync::{RwLock, mpsc, oneshot}};
 
-use crate::qmp::{QMPError, types::{CommandResponse, InvokeCommand, Response}};
+use crate::{
+    Error, Result,
+    types::{InvokeCommand, CommandResponse, Response},
+};
 
 struct StreamLoop {
     buffer: RwLock<BufStream<UnixStream>>,
@@ -14,14 +17,14 @@ struct StreamLoop {
 }
 
 pub struct Client {
-    error: Arc<RwLock<Option<QMPError>>>,
+    error: Arc<RwLock<Option<Error>>>,
 
     drop: mpsc::Sender<()>,
     queue: mpsc::Sender<(InvokeCommand, oneshot::Sender<CommandResponse>)>,
 }
 
 impl Client {
-    pub async fn connect<P: AsRef<Path>>(path: P) -> Result<Self, QMPError> {
+    pub async fn connect<P: AsRef<Path>>(path: P) -> Result<Self> {
         let socket = UnixSocket::new_stream()?;
         let stream = socket.connect(path).await?;
     
@@ -52,13 +55,13 @@ impl Client {
         })
     }
 
-    pub async fn invoke(&self, command: InvokeCommand) -> Result<CommandResponse, QMPError> {
+    pub async fn invoke(&self, command: InvokeCommand) -> Result<CommandResponse> {
         if let Some(_) = self.error.read().await.as_ref() {
-            return Err(QMPError::Protocol("Error occurred in QMP client".to_string()));
+            return Err(Error::Protocol("Error occurred in QMP client".to_string()));
         }
         let (response_tx, response_rx) = oneshot::channel();
-        self.queue.send((command, response_tx)).await.map_err(|_| QMPError::ChannelClosed)?;
-        let response = response_rx.await.map_err(|_| QMPError::ChannelClosed)?;
+        self.queue.send((command, response_tx)).await.map_err(|_| Error::ChannelClosed)?;
+        let response = response_rx.await.map_err(|_| Error::ChannelClosed)?;
         Ok(response)
     }
 }
@@ -77,7 +80,7 @@ enum PollResult {
 }
 
 impl StreamLoop {
-    async fn read(&self) -> Result<Option<Response>, QMPError> {
+    async fn read(&self) -> Result<Option<Response>> {
         let mut line = String::new();
         let mut buffer = self.buffer.write().await;
         match buffer.read_line(&mut line).await.err() {
@@ -85,7 +88,7 @@ impl StreamLoop {
                 if e.kind() == std::io::ErrorKind::ConnectionReset || e.kind() == std::io::ErrorKind::UnexpectedEof {
                     Ok(None)
                 } else {
-                    Err(QMPError::IO(e))
+                    Err(Error::IO(e))
                 }
             },
             None => {
@@ -98,7 +101,7 @@ impl StreamLoop {
         }
     }
 
-    async fn write(&self, command: InvokeCommand) -> Result<(), QMPError> {
+    async fn write(&self, command: InvokeCommand) -> Result<()> {
         let mut buffer = self.buffer.write().await;
         let command_str = serde_json::to_string(&command)? + "\n";
         buffer.write_all(command_str.as_bytes()).await?;
@@ -106,19 +109,19 @@ impl StreamLoop {
         Ok(())
     }
 
-    async fn ensure_handshake(&self) -> Result<(), QMPError> {
-        let greeting = self.read().await?.ok_or(QMPError::HandshakeMissing)?;
+    async fn ensure_handshake(&self) -> Result<()> {
+        let greeting = self.read().await?.ok_or(Error::HandshakeMissing)?;
         match greeting {
             Response::Greeting(_) => {
                 self.write(InvokeCommand::empty("qmp_capabilities")).await?;
                 self.read().await?;
                 Ok(())
             },
-            _ => Err(QMPError::Protocol("Expected greeting message".to_string())),
+            _ => Err(Error::Protocol("Expected greeting message".to_string())),
         }
     }
 
-    async fn poll(&self) -> Result<PollResult, QMPError> {
+    async fn poll(&self) -> Result<PollResult> {
         let mut drop = self.drop.write().await;
         let mut queue = self.queue.write().await;
         tokio::select! {
@@ -143,7 +146,7 @@ impl StreamLoop {
         }
     }
 
-    pub async fn start(self) -> Result<(), QMPError> {
+    pub async fn start(self) -> Result<()> {
         self.ensure_handshake().await?;
         loop {
             match self.poll().await? {
@@ -156,7 +159,7 @@ impl StreamLoop {
                         Response::CommandResponse(response) => {
                             let mut active_command = self.active_command.write().await;
                             if let Some(callback) = active_command.take() {
-                                callback.send(response).map_err(|_| QMPError::ChannelClosed)?;
+                                callback.send(response).map_err(|_| Error::ChannelClosed)?;
                             }
                         },
                         Response::Event(_) => {

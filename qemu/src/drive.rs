@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::qemu::QEMU;
+use crate::QEMU;
 
 
 impl QEMU {

@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
+use qmp::client::Client;
+use qmp::types::InvokeCommand;
 use tokio::process::Command;
-use yave::{config::{Config, VirtualMachine}, pathes::{get_config_path, get_run_path}, qmp::{self, types::InvokeCommand}, run::RunFactory};
+use yave::{config::{Config, VirtualMachine}, pathes::{get_config_path, get_run_path}, run::RunFactory};
 
 
 #[derive(Parser)]
@@ -45,11 +47,11 @@ async fn main() {
 
             println!("QEMU exited with: {:?}", child.wait().await);
 
-            let qmp = qmp::client::Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
+            let qmp = Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
             qmp.invoke(InvokeCommand::set_vnc_password(&vm.vnc.password)).await.expect("Failed to set VNC password");
         },
         Subcommands::Stop => {
-            let qmp = qmp::client::Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
+            let qmp = Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
             qmp.invoke(InvokeCommand::empty("quit")).await.expect("Failed to quit");
         },
         Subcommands::Show => {

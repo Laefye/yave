@@ -1,4 +1,4 @@
-use crate::qemu::QEMU;
+use crate::QEMU;
 
 pub enum MediaType {
     Disk,
