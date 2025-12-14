@@ -1,22 +1,32 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use qemu::QEMU;
-use crate::{config::{Config, DriveDevice, VirtualMachine}};
+use crate::config::{Config, DriveDevice, VirtualMachine};
 
 pub struct RunFactory<'a> {
     socket: PathBuf,
     pidfile: PathBuf,
-    vm: &'a VirtualMachine,
+    net_script_up: PathBuf,
+    net_script_down: PathBuf,
     config: &'a Config,
+    vm: &'a VirtualMachine,
 }
 
 impl<'a> RunFactory<'a> {
-    pub fn new<SocketPath: AsRef<std::path::Path>, PidfilePath: AsRef<std::path::Path>>(socket: SocketPath, pidfile: PidfilePath, vm: &'a VirtualMachine, config: &'a Config) -> Self {
+    pub fn new<SocketPath, PidfilePath, NetScriptUpPath, NetScriptDownPath>(socket: SocketPath, pidfile: PidfilePath, net_script_up: NetScriptUpPath, net_script_down: NetScriptDownPath, vm: &'a VirtualMachine, config: &'a Config) -> Self 
+    where 
+        SocketPath: AsRef<std::path::Path>,
+        PidfilePath: AsRef<std::path::Path>,
+        NetScriptUpPath: AsRef<std::path::Path>,
+        NetScriptDownPath: AsRef<std::path::Path>,
+    {
         Self {
             socket: socket.as_ref().to_path_buf().join(format!("{}.sock", vm.name)),
             pidfile: pidfile.as_ref().to_path_buf().join(format!("{}.pid", vm.name)),
-            vm,
+            net_script_up: net_script_up.as_ref().to_path_buf(),
+            net_script_down: net_script_down.as_ref().to_path_buf(),
             config,
+            vm,
         }
     }
 
@@ -84,7 +94,7 @@ impl<'a> RunFactory<'a> {
         for (id, net) in &self.vm.networks {
             match net {
                 crate::config::NetworkInterface::Tap(tap) => {
-                    qemu = qemu.netdev_tap(id, &tap.ifname, None, None);
+                    qemu = qemu.netdev_tap(id, &tap.ifname, Some(&self.net_script_up), Some(&self.net_script_down));
                     qemu = qemu.network_device(id, &tap.device.mac);
                 },
             }

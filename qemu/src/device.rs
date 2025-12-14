@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::QEMU;
 
 pub enum MediaType {
@@ -53,9 +55,17 @@ impl QEMU {
         self
     }
 
-    pub fn netdev_tap(mut self, id: &str, ifname: &str, script: Option<&str>, downscript: Option<&str>) -> Self {
+    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(mut self, id: &str, ifname: &str, script: Option<T>, downscript: Option<S>) -> Self {
+        let script = match script {
+            Some(s) => s.as_ref().to_string_lossy().to_string(),
+            None => "no".to_string(),
+        };
+        let downscript = match downscript {
+            Some(d) => d.as_ref().to_string_lossy().to_string(),
+            None => "no".to_string(),
+        };
         self.args.push("-netdev".to_string());
-        self.args.push(format!("tap,id={},ifname={},script={},downscript={}", id, ifname, script.unwrap_or("no"), downscript.unwrap_or("no")));
+        self.args.push(format!("tap,id={},ifname={},script={},downscript={}", id, ifname, script, downscript));
         self
     }
 

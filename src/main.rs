@@ -1,8 +1,10 @@
+use std::env;
+
 use clap::{Parser, Subcommand};
 use qmp::client::Client;
 use qmp::types::InvokeCommand;
 use tokio::process::Command;
-use yave::{config::{Config, VirtualMachine}, pathes::{get_config_path, get_run_path}, run::RunFactory};
+use yave::{config::{Config, VirtualMachine}, constants::{get_config_path, get_net_script, get_run_path, get_vm_env_variable_path}, run::RunFactory};
 
 
 #[derive(Parser)]
@@ -19,6 +21,14 @@ enum Subcommands {
     Run,
     Stop,
     Show,
+    Netdevup {
+        #[arg(short, long)]
+        ifname: String,
+    },
+    Netdevdown {
+        #[arg(short, long)]
+        ifname: String,
+    },
 }
 
 #[tokio::main]
@@ -32,6 +42,8 @@ async fn main() {
     let run = RunFactory::new(
         get_run_path(),
         get_run_path(),
+        get_net_script(true),
+        get_net_script(false),
         &vm,
         &config,
     );
@@ -42,6 +54,7 @@ async fn main() {
 
             let mut child = Command::new(&args[0])
                 .args(&args[1..])
+                .env(get_vm_env_variable_path(), env::current_dir().expect("Wtf").join(&cli.vm).to_string_lossy().to_string())
                 .spawn()
                 .expect("Failed to start QEMU");
 
@@ -72,6 +85,18 @@ async fn main() {
             }
             let args = run.build_qemu_command();
             println!("QEMU Command: {:?}", args.join(" "));
-        }
+        },
+        Subcommands::Netdevup { ifname } => {
+            yave::interface::set_link_up(&ifname).await.expect("Failed to set link up");
+            let inet = vm.networks.iter().find(|x| x.1.get_ifname() == ifname);
+            if let Some(inet) = inet {
+                if let Some(master) = &inet.1.get_network_device().master {
+                    yave::interface::set_master(&ifname, &master).await.expect("Failed to set master");
+                }
+            }
+        },
+        Subcommands::Netdevdown { ifname } => {
+            println!("Bringing down interface: {}", ifname);
+        },
     }
 }

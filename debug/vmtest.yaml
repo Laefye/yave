@@ -12,8 +12,6 @@
       device:
         type: ide
         media_type: hd
-        sata_bus: sata0
-        # serial: "deadbeef"
         boot_index: 1
     cdrom0:
       path: ubuntu.iso
@@ -27,3 +25,4 @@
       ifname: tap0
       device:
         mac: "52:54:00:12:34:56"
+        master: "vbr0"

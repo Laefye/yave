@@ -133,6 +133,7 @@ impl VirtualMachine {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkDevice {
     pub mac: String,
+    pub master: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -148,4 +149,16 @@ pub enum NetworkInterface {
     Tap(TapInterface),
 }
 
+impl<'a> NetworkInterface {
+    pub fn get_network_device(&'a self) -> &'a NetworkDevice {
+        match self {
+            NetworkInterface::Tap(tap_interface) => &tap_interface.device,
+        }
+    }
 
+    pub fn get_ifname(&'a self) -> &'a str {
+        match self {
+            NetworkInterface::Tap(tap_interface) => &tap_interface.ifname,
+        }
+    }
+}

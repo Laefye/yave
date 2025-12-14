@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./target/debug/yave --vm $YAVE_VM_PATH netdevup --ifname $1
