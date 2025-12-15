@@ -24,10 +24,22 @@ impl QEMU {
             .arg(&format!("{}{}{}", device_type, drive_arg, boot_arg))
     }
 
-    pub fn virtio_vga(mut self) -> Self {
-        self.args.push("-device".to_string());
-        self.args.push("virtio-vga".to_string());
+    pub fn virtio_blk(self, drive_id: &str, boot_index: Option<u32>) -> Self {
+        let boot_arg = if let Some(index) = boot_index {
+            format!(",bootindex={}", index)
+        } else {
+            "".to_string()
+        };
+        let drive_arg = format!(",drive={}", drive_id);
         self
+            .arg("-device")
+            .arg(&format!("virtio-blk-pci{}{}", drive_arg, boot_arg))
+    }
+
+    pub fn virtio_vga(self) -> Self {
+        self
+            .arg("-device")
+            .arg("virtio-vga")
     }
 
     pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(mut self, id: &str, ifname: &str, script: Option<T>, downscript: Option<S>) -> Self {

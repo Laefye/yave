@@ -10,8 +10,8 @@
     hd0:
       path: hda.qcow2
       device:
-        type: ide
-        media_type: hd
+        type: virtio-blk
+        # media_type: hd
         boot_index: 1
     cdrom0:
       path: ubuntu.iso

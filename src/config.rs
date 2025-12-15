@@ -90,10 +90,17 @@ pub struct IdeDevice {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct VirtioBlkDevice {
+    pub boot_index: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum DriveDevice {
     #[serde(rename = "ide")]
     Ide(IdeDevice),
+    #[serde(rename = "virtio-blk")]
+    VirtioBlk(VirtioBlkDevice)
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -40,6 +40,9 @@ impl<'a> RunFactory<'a> {
                         crate::config::MediaType::Cdrom => qemu::device::MediaType::Cdrom,
                     })
                 },
+                DriveDevice::VirtioBlk(virtio_blk_device) => {
+                    qemu.virtio_blk(id, virtio_blk_device.boot_index)
+                },
             }
         }
         qemu
