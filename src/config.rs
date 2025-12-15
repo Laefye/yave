@@ -87,23 +87,13 @@ pub enum MediaType {
 pub struct IdeDevice {
     pub media_type: MediaType,
     pub boot_index: Option<u32>,
-    pub sata_bus: Option<String>,
 }
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct NvmeDevice {
-    pub serial: String,
-    pub boot_index: Option<u32>,
-}
-
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum DriveDevice {
     #[serde(rename = "ide")]
     Ide(IdeDevice),
-    #[serde(rename = "nvme")]
-    Nvme(NvmeDevice),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
