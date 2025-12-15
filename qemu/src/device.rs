@@ -7,33 +7,60 @@ pub enum MediaType {
     Cdrom,
 }
 
+struct ArgValue {
+    parts: Vec<String>,
+}
+
+impl ArgValue {
+    pub fn new() -> Self {
+        Self { parts: Vec::new() }
+    }
+
+    pub fn arg<T: ToString>(mut self, value: T) -> Self {
+        self.parts.push(value.to_string());
+        self
+    }
+
+    pub fn key_value<T: ToString, U: ToString>(mut self, key: T, value: U) -> Self {
+        self.parts.push(format!("{}={}", key.to_string(), value.to_string()));
+        self
+    }
+
+    pub fn key_value_opt<T: ToString, U: ToString>(mut self, key: T, value: Option<U>) -> Self {
+        if let Some(v) = value {
+            self.parts.push(format!("{}={}", key.to_string(), v.to_string()));
+        }
+        self
+    }
+
+    pub fn build(self) -> String {
+        self.parts.join(",")
+    }
+}
+
 impl QEMU {
     pub fn ide_device(self, drive_id: &str, boot_index: Option<u32>, media_type: MediaType) -> Self {
         let device_type = match media_type {
             MediaType::Disk => "ide-hd",
             MediaType::Cdrom => "ide-cd",
         };
-        let boot_arg = if let Some(index) = boot_index {
-            format!(",bootindex={}", index)
-        } else {
-            "".to_string()
-        };
-        let drive_arg = format!(",drive={}", drive_id);
         self
             .arg("-device")
-            .arg(&format!("{}{}{}", device_type, drive_arg, boot_arg))
+            .arg(&ArgValue::new()
+                .arg(device_type)
+                .key_value("drive", drive_id)
+                .key_value_opt("bootindex", boot_index).build()
+            )
     }
 
     pub fn virtio_blk(self, drive_id: &str, boot_index: Option<u32>) -> Self {
-        let boot_arg = if let Some(index) = boot_index {
-            format!(",bootindex={}", index)
-        } else {
-            "".to_string()
-        };
-        let drive_arg = format!(",drive={}", drive_id);
         self
             .arg("-device")
-            .arg(&format!("virtio-blk-pci{}{}", drive_arg, boot_arg))
+            .arg(&ArgValue::new()
+                .arg("virtio-blk-pci")
+                .key_value("drive", drive_id)
+                .key_value_opt("bootindex", boot_index).build()
+            )
     }
 
     pub fn virtio_vga(self) -> Self {
@@ -42,7 +69,7 @@ impl QEMU {
             .arg("virtio-vga")
     }
 
-    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(mut self, id: &str, ifname: &str, script: Option<T>, downscript: Option<S>) -> Self {
+    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(self, id: &str, ifname: &str, script: Option<T>, downscript: Option<S>) -> Self {
         let script = match script {
             Some(s) => s.as_ref().to_string_lossy().to_string(),
             None => "no".to_string(),
@@ -51,14 +78,26 @@ impl QEMU {
             Some(d) => d.as_ref().to_string_lossy().to_string(),
             None => "no".to_string(),
         };
-        self.args.push("-netdev".to_string());
-        self.args.push(format!("tap,id={},ifname={},script={},downscript={}", id, ifname, script, downscript));
         self
+            .arg("-netdev")
+            .arg(&ArgValue::new()
+                .arg("tap")
+                .key_value("id", id)
+                .key_value("ifname", ifname)
+                .key_value("script", script)
+                .key_value("downscript", downscript)
+                .build()
+            )
     }
 
-    pub fn network_device(mut self, netdev_id: &str, mac: &str) -> Self {
-        self.args.push("-device".to_string());
-        self.args.push(format!("e1000,netdev={},mac={}", netdev_id, mac));
+    pub fn network_device(self, netdev_id: &str, mac: &str) -> Self {
         self
+            .arg("-device")
+            .arg(&ArgValue::new()
+                .arg("e1000")
+                .key_value("netdev", netdev_id)
+                .key_value("mac", mac)
+                .build()
+            )
     }
 }
