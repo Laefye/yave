@@ -85,4 +85,8 @@ impl InvokeCommand {
         });
         InvokeCommand::with_args("set_password", args)
     }
+
+    pub fn quit() -> Self {
+        InvokeCommand::Empty(EmptyCommand { execute: "quit".to_string() })
+    }
 }

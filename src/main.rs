@@ -66,7 +66,7 @@ async fn main() {
         },
         Subcommands::Stop => {
             let qmp = Client::connect(run.get_socket_path()).await.expect("Failed to connect to QMP");
-            qmp.invoke(InvokeCommand::empty("quit")).await.expect("Failed to quit");
+            qmp.invoke(InvokeCommand::quit()).await.expect("Failed to quit");
         },
         Subcommands::Show => {
             println!("VM Name: {}", vm.name);
@@ -88,6 +88,7 @@ async fn main() {
             println!("QEMU Command: {:?}", args.join(" "));
         },
         Subcommands::Netdevup { ifname } => {
+            println!("Bringing up interface: {}", ifname);
             yave::interface::set_link_up(&ifname).await.expect("Failed to set link up");
             let inet = vm.networks.iter().find(|x| x.1.get_ifname() == ifname);
             if let Some(inet) = inet {
