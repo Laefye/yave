@@ -30,6 +30,12 @@ enum Subcommands {
         #[arg(short, long)]
         ifname: String,
     },
+    TestAuth {
+        #[arg(short, long)]
+        login: String,
+        #[arg(short, long)]
+        password: String,
+    },
 }
 
 #[tokio::main]
@@ -100,5 +106,14 @@ async fn main() {
         Subcommands::Netdevdown { ifname } => {
             println!("Bringing down interface: {}", ifname);
         },
+        Subcommands::TestAuth {login, password} => {
+            let mut client = pam::Client::with_password("system-auth")
+                    .expect("Failed to init PAM client.");
+            // Preset the login & password we will use for authentication
+            client.conversation_mut().set_credentials(&login, &password);
+            // Actually try to authenticate:
+            client.authenticate().expect("Authentication failed!");
+            // Now that we are authenticated, 
+        }
     }
 }
