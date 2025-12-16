@@ -1,10 +1,11 @@
 use std::env;
 
 use clap::{Parser, Subcommand};
+use config::{Config, VirtualMachine};
 use qmp::client::Client;
 use qmp::types::InvokeCommand;
 use tokio::process::Command;
-use yave::{config::{Config, VirtualMachine}, constants::{get_config_path, get_net_script, get_run_path, get_vm_env_variable_path}, run::RunFactory};
+use yave::{constants::{get_config_path, get_net_script, get_run_path, get_vm_env_variable_path}, run::RunFactory};
 
 
 #[derive(Parser)]
@@ -78,7 +79,7 @@ async fn main() {
             println!("Networks:");
             for (id, net) in &vm.networks {
                 match net {
-                    yave::config::NetworkInterface::Tap(tap) => {
+                    config::NetworkInterface::Tap(tap) => {
                         println!("  ID: {}, Type: Tap, Ifname: {}, MAC: {}", id, tap.ifname, tap.device.mac);
                     },
                 }

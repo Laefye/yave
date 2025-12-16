@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use qemu::QEMU;
-use crate::config::{Config, DriveDevice, VirtualMachine};
+use config::{Config, DriveDevice, VirtualMachine};
 
 pub struct RunFactory<'a> {
     socket: PathBuf,
@@ -36,8 +36,8 @@ impl<'a> RunFactory<'a> {
             qemu = match &drive.device {
                 DriveDevice::Ide(ide_device) => {
                     qemu.ide_device(id, ide_device.boot_index, match ide_device.media_type {
-                        crate::config::MediaType::Disk => qemu::device::MediaType::Disk,
-                        crate::config::MediaType::Cdrom => qemu::device::MediaType::Cdrom,
+                        config::MediaType::Disk => qemu::device::MediaType::Disk,
+                        config::MediaType::Cdrom => qemu::device::MediaType::Cdrom,
                     })
                 },
                 DriveDevice::VirtioBlk(virtio_blk_device) => {
@@ -72,7 +72,7 @@ impl<'a> RunFactory<'a> {
     fn add_networks(&self, mut qemu: QEMU) -> QEMU {
         for (id, net) in &self.vm.networks {
             match net {
-                crate::config::NetworkInterface::Tap(tap) => {
+                config::NetworkInterface::Tap(tap) => {
                     qemu = qemu.netdev_tap(id, &tap.ifname, Some(&self.net_script_up), Some(&self.net_script_down));
                     qemu = qemu.network_device(id, &tap.device.mac);
                 },

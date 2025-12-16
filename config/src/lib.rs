@@ -3,12 +3,14 @@ use std::{collections::HashMap, path::Path};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
-pub enum ConfigError {
+pub enum Error {
     #[error("Failed to load configuration: {0}")]
     YAML(#[from] serde_yaml::Error),
     #[error("Configuration file not found at path: {0}")]
     IO(#[from] std::io::Error),
 }
+
+type Result<T> = std::result::Result<T, Error>;
 
 fn resolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
     if relative.as_ref().is_absolute() {
@@ -43,7 +45,7 @@ pub struct KVM {
 }
 
 impl Config {
-    pub fn load(path: &Path) -> Result<Self, ConfigError> {
+    pub fn load(path: &Path) -> Result<Self> {
         let config_str = std::fs::read_to_string(path)?;
         let mut config: Config = serde_yaml::from_str(&config_str)?;
         config.kvm.bin = resolve(path, &config.kvm.bin);
@@ -110,7 +112,7 @@ pub struct Drive {
 }
 
 impl VirtualMachine {
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
         let vm_str = std::fs::read_to_string(path.clone())?;
         let mut vm: VirtualMachine = serde_yaml::from_str(&vm_str)?;
@@ -120,7 +122,7 @@ impl VirtualMachine {
         Ok(vm)
     }
 
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let vm_str = serde_yaml::to_string(self).unwrap();
         std::fs::write(path, vm_str)?;
         Ok(())
