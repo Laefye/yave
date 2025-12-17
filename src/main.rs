@@ -1,11 +1,11 @@
 use std::env;
 
 use clap::{Parser, Subcommand};
-use config::{Config, VirtualMachine};
 use qmp::client::Client;
 use qmp::types::InvokeCommand;
 use tokio::process::Command;
 use yave::{constants::{get_config_path, get_net_script, get_run_path, get_vm_env_variable_path}, run::RunFactory};
+use yave::config::{Config, VirtualMachine, NetworkInterface};
 
 
 #[derive(Parser)]
@@ -85,7 +85,7 @@ async fn main() {
             println!("Networks:");
             for (id, net) in &vm.networks {
                 match net {
-                    config::NetworkInterface::Tap(tap) => {
+                    NetworkInterface::Tap(tap) => {
                         println!("  ID: {}, Type: Tap, Ifname: {}, MAC: {}", id, tap.ifname, tap.device.mac);
                     },
                 }
@@ -114,6 +114,13 @@ async fn main() {
             // Actually try to authenticate:
             client.authenticate().expect("Authentication failed!");
             // Now that we are authenticated, 
+            let groups = users::get_user_by_name(&login).expect("User not found")
+                .groups()
+                .expect("Failed to get user groups");
+            println!("User '{}' is in groups:", login);
+            for group in groups {
+                println!(" - {}", group.name().to_string_lossy());
+            }
         }
     }
 }
