@@ -27,6 +27,13 @@ fn resolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
     resolved_path.to_string_lossy().to_string()
 }
 
+fn unresolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
+    match relative.as_ref().strip_prefix(&base) {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(_) => relative.as_ref().to_string_lossy().to_string(),
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OVMF {
     pub code: String,
@@ -34,9 +41,15 @@ pub struct OVMF {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct API {
+    pub groups: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub kvm: KVM,
     pub ovmf: OVMF,
+    pub api: API,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -115,15 +128,19 @@ impl VirtualMachine {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
         let vm_str = std::fs::read_to_string(path.clone())?;
-        let mut vm: VirtualMachine = serde_yaml::from_str(&vm_str)?;
+        let mut vm = serde_yaml::from_str::<VirtualMachine>(&vm_str)?;
         for (_, drive) in vm.drives.iter_mut() {
             drive.path = resolve(&path, &drive.path);
         }
         Ok(vm)
     }
 
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let vm_str = serde_yaml::to_string(self).unwrap();
+    pub fn save<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
+        println!("{:?}", path.as_ref());
+        for (_, drive) in self.drives.iter_mut() {
+            drive.path = unresolve(&path.as_ref().parent().unwrap_or(Path::new(".")), &drive.path);
+        }
+        let vm_str = serde_yaml::to_string(&self).unwrap();
         std::fs::write(path, vm_str)?;
         Ok(())
     }

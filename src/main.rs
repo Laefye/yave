@@ -23,6 +23,10 @@ enum Subcommands {
     Run,
     Stop,
     Show,
+    Resave {
+        #[arg(short, long)]
+        filename: String,
+    },
     Netdevup {
         #[arg(short, long)]
         ifname: String,
@@ -112,11 +116,8 @@ async fn main() {
         Subcommands::TestAuth {login, password} => {
             let mut client = pam::Client::with_password("system-auth")
                     .expect("Failed to init PAM client.");
-            // Preset the login & password we will use for authentication
             client.conversation_mut().set_credentials(&login, &password);
-            // Actually try to authenticate:
             client.authenticate().expect("Authentication failed!");
-            // Now that we are authenticated, 
             let groups = users::get_user_by_name(&login).expect("User not found")
                 .groups()
                 .expect("Failed to get user groups");
@@ -124,6 +125,9 @@ async fn main() {
             for group in groups {
                 println!(" - {}", group.name().to_string_lossy());
             }
+        },
+        Subcommands::Resave { filename } => {
+            vm.save(&env::current_dir().unwrap().join(&filename)).expect("Error with saving");
         }
     }
 }
