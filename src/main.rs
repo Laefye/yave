@@ -1,6 +1,7 @@
 use std::env;
 
 use clap::{Parser, Subcommand};
+use nft::{Nft, builders::Family};
 use qmp::client::Client;
 use qmp::types::InvokeCommand;
 use tokio::process::Command;
@@ -102,6 +103,8 @@ async fn main() {
                     yave::interface::set_master(&ifname, &master).await.expect("Failed to set master");
                 }
             }
+            let nft = Nft::default().add().table(Family::Inet, "uwu").build();
+            println!("{:?}", nft);
         },
         Subcommands::Netdevdown { ifname } => {
             println!("Bringing down interface: {}", ifname);
