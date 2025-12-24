@@ -4,7 +4,7 @@ use qemu::KVM;
 use tokio::process::Command;
 use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
 
-pub struct RunFactory<'a> {
+pub struct VmContext<'a> {
     socket: PathBuf,
     pidfile: PathBuf,
     net_script_up: PathBuf,
@@ -19,7 +19,7 @@ fn create_parent_dir(path: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-impl<'a> RunFactory<'a> {
+impl<'a> VmContext<'a> {
     pub fn new<SocketPath, NetScriptUpPath, NetScriptDownPath>(
         run_dir: SocketPath,
         net_script_up: NetScriptUpPath,

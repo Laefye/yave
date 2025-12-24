@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, TapInterface, VNC, VirtioBlkDevice, VirtualMachine};
 
-use crate::{DefaultFacade, Error, Facade, constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vm_env_variable, get_vminstance_extension}, images::Images, run::RunFactory};
+use crate::{DefaultFacade, Error, Facade, constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vm_env_variable, get_vminstance_extension}, images::Images, vmcontext::VmContext};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum InputOperatingSystem {
@@ -103,7 +103,7 @@ impl Facade<RunVirtualMachinesInput> for DefaultFacade {
                 .join("config.yaml")
             )?;
         
-        let run = RunFactory::new(
+        let run = VmContext::new(
             &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
@@ -135,7 +135,7 @@ impl Facade<ShutdownVirtualMachinesInput> for DefaultFacade {
                 .join("config.yaml")
             )?;
         
-        let run = RunFactory::new(
+        let run = VmContext::new(
             &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
