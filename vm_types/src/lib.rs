@@ -55,6 +55,7 @@ pub struct Config {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct KVM {
     pub bin: String,
+    pub img: String,
 }
 
 impl Config {
@@ -154,7 +155,6 @@ pub struct NetworkDevice {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TapInterface {
-    pub ifname: String,
     pub device: NetworkDevice,
 }
 
@@ -172,9 +172,4 @@ impl<'a> NetworkInterface {
         }
     }
 
-    pub fn get_ifname(&'a self) -> &'a str {
-        match self {
-            NetworkInterface::Tap(tap_interface) => &tap_interface.ifname,
-        }
-    }
 }

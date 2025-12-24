@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use qemu::QEMU;
-use crate::config::{Config, DriveDevice, VirtualMachine, MediaType, NetworkInterface};
+use qemu::KVM;
+use tokio::process::Command;
+use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
 
 pub struct RunFactory<'a> {
     socket: PathBuf,
@@ -10,10 +11,19 @@ pub struct RunFactory<'a> {
     net_script_down: PathBuf,
     config: &'a Config,
     vm: &'a VirtualMachine,
+    env_name: String,
 }
 
 impl<'a> RunFactory<'a> {
-    pub fn new<SocketPath, PidfilePath, NetScriptUpPath, NetScriptDownPath>(socket: SocketPath, pidfile: PidfilePath, net_script_up: NetScriptUpPath, net_script_down: NetScriptDownPath, vm: &'a VirtualMachine, config: &'a Config) -> Self 
+    pub fn new<SocketPath, PidfilePath, NetScriptUpPath, NetScriptDownPath>(
+        socket: SocketPath,
+        pidfile: PidfilePath,
+        net_script_up: NetScriptUpPath,
+        net_script_down: NetScriptDownPath,
+        vm: &'a VirtualMachine,
+        config: &'a Config,
+        env_name: &str,
+    ) -> Self 
     where 
         SocketPath: AsRef<std::path::Path>,
         PidfilePath: AsRef<std::path::Path>,
@@ -27,18 +37,16 @@ impl<'a> RunFactory<'a> {
             net_script_down: net_script_down.as_ref().to_path_buf(),
             config,
             vm,
+            env_name: env_name.to_string(),
         }
     }
 
-    fn build_drives(&self, mut qemu: QEMU) -> QEMU {
+    fn build_drives(&self, mut qemu: KVM) -> KVM {
         for (id, drive) in &self.vm.drives {
             qemu = qemu.drive(id, &drive.path);
             qemu = match &drive.device {
                 DriveDevice::Ide(ide_device) => {
-                    qemu.ide_device(id, ide_device.boot_index, match ide_device.media_type {
-                        MediaType::Disk => qemu::device::MediaType::Disk,
-                        MediaType::Cdrom => qemu::device::MediaType::Cdrom,
-                    })
+                    qemu.ide_device(id, ide_device.boot_index, &ide_device.media_type)
                 },
                 DriveDevice::VirtioBlk(virtio_blk_device) => {
                     qemu.virtio_blk(id, virtio_blk_device.boot_index)
@@ -56,7 +64,7 @@ impl<'a> RunFactory<'a> {
         &self.socket
     }
 
-    fn add_uefi(&self, mut qemu: QEMU) -> QEMU {
+    fn add_uefi(&self, mut qemu: KVM) -> KVM {
         if let Some(true) = self.vm.hardware.ovmf {
             let code = self.config.ovmf.code.clone();
             let vars = self.config.ovmf.vars.clone();
@@ -65,15 +73,15 @@ impl<'a> RunFactory<'a> {
         qemu
     }
 
-    fn add_vnc(&self, qemu: QEMU) -> QEMU {
+    fn add_vnc(&self, qemu: KVM) -> KVM {
         qemu.vnc(&self.vm.vnc.port, true)
     }
     
-    fn add_networks(&self, mut qemu: QEMU) -> QEMU {
+    fn add_networks(&self, mut qemu: KVM) -> KVM {
         for (id, net) in &self.vm.networks {
             match net {
                 NetworkInterface::Tap(tap) => {
-                    qemu = qemu.netdev_tap(id, &tap.ifname, Some(&self.net_script_up), Some(&self.net_script_down));
+                    qemu = qemu.netdev_tap(id, Some(&self.net_script_up), Some(&self.net_script_down));
                     qemu = qemu.network_device(id, &tap.device.mac);
                 },
             }
@@ -81,8 +89,8 @@ impl<'a> RunFactory<'a> {
         qemu
     }
 
-    pub fn build_qemu_command(&self) -> Vec<String> {
-        let mut qemu = QEMU::new(&self.config.kvm.bin.clone())
+    fn build_qemu_command(&self) -> Vec<String> {
+        let mut qemu = KVM::new(&self.config.kvm.bin.clone())
             .enable_kvm()
             .qmp(&self.socket)
             .pidfile(&self.pidfile)
@@ -97,5 +105,14 @@ impl<'a> RunFactory<'a> {
         qemu = self.add_vnc(qemu);
         qemu = self.add_networks(qemu);
         qemu.build()
+    }
+
+    pub async fn run(&self) -> Result<(), std::io::Error> {
+        let args = self.build_qemu_command();
+        let mut command = Command::new(&args[0]);
+        command.env(&self.env_name, &self.vm.name);
+        command.args(&args[1..]);
+        command.status().await?;
+        Ok(())
     }
 }

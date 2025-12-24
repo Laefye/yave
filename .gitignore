@@ -5,3 +5,6 @@
 *.sock
 *.qcow2
 *.iso
+
+# Ignore vminstances
+*.vminstance

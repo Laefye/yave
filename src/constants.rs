@@ -29,6 +29,18 @@ pub fn get_net_script(up: bool) -> PathBuf {
     }
 }
 
-pub fn get_vm_env_variable_path() -> String {
-    "YAVE_VM_PATH".to_string()
+pub fn get_vm_env_variable() -> String {
+    "YAVE_NAME".to_string()
 }
+
+#[cfg(debug_assertions)]
+pub fn get_vm_config_path() -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join("debug")
+}
+
+pub fn get_vminstance_extension() -> String {
+    "vminstance".to_string()
+}
+

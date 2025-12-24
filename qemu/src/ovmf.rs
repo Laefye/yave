@@ -1,6 +1,6 @@
-use crate::QEMU;
+use crate::KVM;
 
-impl QEMU {
+impl KVM {
     pub fn ovmf<C: AsRef<std::path::Path>, V: AsRef<std::path::Path>>(mut self, code: C, vars: V) -> Self {
         self.args.push("-drive".to_string());
         self.args.push(format!(

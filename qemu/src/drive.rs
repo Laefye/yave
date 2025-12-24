@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use crate::QEMU;
+use crate::KVM;
 
 
-impl QEMU {
+impl KVM {
     pub fn drive<P: AsRef<Path>>(self, id: &str, filename: P) -> Self {
         self
             .arg("-drive")

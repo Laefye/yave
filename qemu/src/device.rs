@@ -1,11 +1,8 @@
 use std::path::Path;
 
-use crate::QEMU;
+use vm_types::MediaType;
 
-pub enum MediaType {
-    Disk,
-    Cdrom,
-}
+use crate::KVM;
 
 struct ArgValue {
     parts: Vec<String>,
@@ -38,8 +35,8 @@ impl ArgValue {
     }
 }
 
-impl QEMU {
-    pub fn ide_device(self, drive_id: &str, boot_index: Option<u32>, media_type: MediaType) -> Self {
+impl KVM {
+    pub fn ide_device(self, drive_id: &str, boot_index: Option<u32>, media_type: &MediaType) -> Self {
         let device_type = match media_type {
             MediaType::Disk => "ide-hd",
             MediaType::Cdrom => "ide-cd",
@@ -69,7 +66,7 @@ impl QEMU {
             .arg("virtio-vga")
     }
 
-    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(self, id: &str, ifname: &str, script: Option<T>, downscript: Option<S>) -> Self {
+    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(self, id: &str, script: Option<T>, downscript: Option<S>) -> Self {
         let script = match script {
             Some(s) => s.as_ref().to_string_lossy().to_string(),
             None => "no".to_string(),
@@ -83,7 +80,6 @@ impl QEMU {
             .arg(&ArgValue::new()
                 .arg("tap")
                 .key_value("id", id)
-                .key_value("ifname", ifname)
                 .key_value("script", script)
                 .key_value("downscript", downscript)
                 .build()

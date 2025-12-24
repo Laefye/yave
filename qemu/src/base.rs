@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use crate::QEMU;
+use crate::{Img, KVM};
 
-impl QEMU {
+impl KVM {
     pub fn enable_kvm(mut self) -> Self {
         self.args.push("-enable-kvm".to_string());
         self
@@ -58,5 +58,21 @@ impl QEMU {
         self.args.push("-name".to_string());
         self.args.push(name.to_string());
         self
+    }
+}
+
+pub enum ImgFormat {
+    Qcow2,
+}
+
+impl Img {
+    pub fn create(self, format: ImgFormat, path: &str, size: u32) -> Self {
+        self.arg("create")
+            .arg("-f")
+            .arg(match format {
+                ImgFormat::Qcow2 => "qcow2",
+            })
+            .arg(path)
+            .arg(&format!("{}M", size))
     }
 }
