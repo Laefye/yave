@@ -20,9 +20,8 @@ fn create_parent_dir(path: &Path) -> Result<(), std::io::Error> {
 }
 
 impl<'a> RunFactory<'a> {
-    pub fn new<SocketPath, PidfilePath, NetScriptUpPath, NetScriptDownPath>(
-        socket: SocketPath,
-        pidfile: PidfilePath,
+    pub fn new<SocketPath, NetScriptUpPath, NetScriptDownPath>(
+        run_dir: SocketPath,
         net_script_up: NetScriptUpPath,
         net_script_down: NetScriptDownPath,
         vm: &'a VirtualMachine,
@@ -31,13 +30,12 @@ impl<'a> RunFactory<'a> {
     ) -> Self 
     where 
         SocketPath: AsRef<std::path::Path>,
-        PidfilePath: AsRef<std::path::Path>,
         NetScriptUpPath: AsRef<std::path::Path>,
         NetScriptDownPath: AsRef<std::path::Path>,
     {
         Self {
-            socket: socket.as_ref().to_path_buf().join(format!("{}.sock", vm.name)),
-            pidfile: pidfile.as_ref().to_path_buf().join(format!("{}.pid", vm.name)),
+            socket: run_dir.as_ref().to_path_buf().join(format!("{}.sock", vm.name)),
+            pidfile: run_dir.as_ref().to_path_buf().join(format!("{}.pid", vm.name)),
             net_script_up: net_script_up.as_ref().to_path_buf(),
             net_script_down: net_script_down.as_ref().to_path_buf(),
             config,

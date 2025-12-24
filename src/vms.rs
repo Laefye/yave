@@ -105,7 +105,6 @@ impl Facade<RunVirtualMachinesInput> for DefaultFacade {
         
         let run = RunFactory::new(
             &get_run_path(),
-            &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
             &get_vm_env_variable(),
@@ -137,7 +136,6 @@ impl Facade<ShutdownVirtualMachinesInput> for DefaultFacade {
             )?;
         
         let run = RunFactory::new(
-            &get_run_path(),
             &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
