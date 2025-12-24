@@ -8,3 +8,5 @@
 
 # Ignore vminstances
 *.vminstance
+.debpkg
+.debpkg.deb

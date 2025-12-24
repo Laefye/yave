@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use qemu::KVM;
 use tokio::process::Command;
@@ -12,6 +12,11 @@ pub struct RunFactory<'a> {
     config: &'a Config,
     vm: &'a VirtualMachine,
     env_name: String,
+}
+
+fn create_parent_dir(path: &Path) -> Result<(), std::io::Error> {
+    std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
+    Ok(())
 }
 
 impl<'a> RunFactory<'a> {
@@ -108,6 +113,8 @@ impl<'a> RunFactory<'a> {
     }
 
     pub async fn run(&self) -> Result<(), std::io::Error> {
+        create_parent_dir(self.get_socket_path())?;
+        create_parent_dir(self.get_pidfile_path())?;
         let args = self.build_qemu_command();
         let mut command = Command::new(&args[0]);
         command.env(&self.env_name, &self.vm.name);

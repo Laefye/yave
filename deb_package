@@ -1,0 +1,7 @@
+Package: yave
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Laefye <dev@laefye.ru>
+Description: Yet Another Virtual Environment
