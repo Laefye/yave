@@ -2,13 +2,34 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, TapInterface, VNC, VirtioBlkDevice, VirtualMachine};
+use vm_types::{
+    Config,
+    Drive,
+    DriveDevice,
+    Hardware,
+    NetworkDevice,
+    NetworkInterface,
+    TapInterface,
+    VNC,
+    VirtioBlkDevice,
+    VirtualMachine,
+};
 
-use crate::{DefaultFacade, Error, Facade, constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vm_env_variable, get_vminstance_extension}, images::Images, vmcontext::VmContext};
+use crate::{
+    DefaultFacade, Error, Facade, constants::{
+        get_config_path,
+        get_net_script,
+        get_run_path,
+        get_vm_config_path,
+        get_vm_env_variable,
+        get_vminstance_extension
+    }, images::Images, interface::{set_link_up, set_master}, vmcontext::VmContext
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum InputOperatingSystem {
     Empty,
+    Image(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,7 +70,7 @@ impl Facade<VirtualMachineCreateInput> for DefaultFacade {
     type Output = ();
 
     async fn invoke(&self, input: VirtualMachineCreateInput) -> Result<Self::Output, Error> {
-        let vm_dir = &get_vm_config_path().join(&format!("{}.vminstance", input.name));
+        let vm_dir = &get_vm_config_path().join(&format!("{}.{}", input.name, get_vminstance_extension()));
         std::fs::create_dir_all(vm_dir)?;
         
         let vm_config = make_config(&input);
@@ -58,8 +79,17 @@ impl Facade<VirtualMachineCreateInput> for DefaultFacade {
         vm_config.save(vm_dir.join("config.yaml"))?;
         
         let config = Config::load(&get_config_path())?;
-        let image = Images::new(config.kvm.img);
-        image.run(input.capacity, vm_dir.join("hd0.qcow2")).await.expect("Ikd");
+        
+        match input.os {
+            InputOperatingSystem::Empty => {
+                let image = Images::new(config.kvm.img);
+                image.run(input.capacity, vm_dir.join("hd0.qcow2")).await.expect("Ikd");
+            },
+            InputOperatingSystem::Image(image_name) => {
+                let img_path = &vm_config.drives[&"hd0".to_string()].path;
+                std::fs::copy(get_vm_config_path().join(&image_name), vm_dir.join(img_path))?;
+            },
+        }
 
         Ok(())
     }
@@ -149,3 +179,35 @@ impl Facade<ShutdownVirtualMachinesInput> for DefaultFacade {
     }
 }
 
+pub struct NetdevVirtualMachinesInput {
+    pub name: String,
+    pub ifname: String,
+    pub status: bool,
+}
+
+#[async_trait]
+impl Facade<NetdevVirtualMachinesInput> for DefaultFacade {
+    type Output = ();
+    
+    async fn invoke(&self, netdev_virtual_machines_input: NetdevVirtualMachinesInput) -> Result<Self::Output, Error> {
+        if netdev_virtual_machines_input.status == false {
+            return Ok(());
+        }
+        let vm_config = VirtualMachine::load(
+            &get_vm_config_path()
+                .join(format!("{}.{}",  netdev_virtual_machines_input.name, get_vminstance_extension()))
+                .join("config.yaml")
+            )?;
+        
+        let interface = vm_config.networks.iter().next();
+        if let Some((_, interface)) = interface {
+            if let Some(master) = &interface.get_network_device().master {
+                set_master(&netdev_virtual_machines_input.ifname, master).await?;
+            }
+        }
+
+        set_link_up(&netdev_virtual_machines_input.ifname).await?;
+
+        Ok(())
+    }
+}

@@ -7,6 +7,6 @@
 *.iso
 
 # Ignore vminstances
-*.vminstance
+*.vm
 .debpkg
 .debpkg.deb

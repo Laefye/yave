@@ -1,5 +1,7 @@
+use std::path::{Path, PathBuf};
+
 use clap::{Parser, Subcommand};
-use yave::{DefaultFacade, Facade, vms::{InputOperatingSystem, ListVirtualMachinesInput, RunVirtualMachinesInput, ShutdownVirtualMachinesInput, VirtualMachineCreateInput}};
+use yave::{DefaultFacade, Facade, vms::{InputOperatingSystem, ListVirtualMachinesInput, NetdevVirtualMachinesInput, RunVirtualMachinesInput, ShutdownVirtualMachinesInput, VirtualMachineCreateInput}};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -26,6 +28,8 @@ enum Commands {
         memory: u32,
         #[arg(short, long, default_value = "15360")]
         capacity: u32,
+        #[arg(short, long)]
+        image: Option<String>
     },
     List,
     Run {
@@ -51,13 +55,16 @@ async fn main() {
     let args = Args::parse();
     let facade = DefaultFacade{};
     match args.cmd {
-        Commands::Create { name, vcpu, memory, capacity } => {
+        Commands::Create { name, vcpu, memory, capacity, image } => {
             facade.invoke(VirtualMachineCreateInput{
                 name,
                 vcpu,
                 memory,
                 capacity,
-                os: InputOperatingSystem::Empty,
+                os: match image {
+                    None => InputOperatingSystem::Empty,
+                    Some(path) => InputOperatingSystem::Image(path)
+                },
             }).await.expect("Error with creating");
         },
         Commands::List => {
@@ -73,7 +80,14 @@ async fn main() {
             facade.invoke(ShutdownVirtualMachinesInput {name}).await.expect("Error with shuting down");
         },
         Commands::Netdev { name, ifname, command } => {
-            println!("Todo netdev")
+            facade.invoke(NetdevVirtualMachinesInput {
+                name,
+                ifname,
+                status: match command {
+                    NetdevCommand::Up => true,
+                    NetdevCommand::Down => false,
+                }
+            }).await.expect("Error with shuting down");
         }
     }
 

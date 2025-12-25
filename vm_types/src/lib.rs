@@ -69,20 +69,20 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Hardware {
     pub memory: u32,
     pub vcpu: u32,
     pub ovmf: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VNC {
     pub port: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VirtualMachine {
     pub name: String,
     pub hardware: Hardware,
@@ -91,7 +91,7 @@ pub struct VirtualMachine {
     pub networks: HashMap<String, NetworkInterface>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum MediaType {
     #[serde(rename = "cd")]
     Cdrom,
@@ -99,18 +99,18 @@ pub enum MediaType {
     Disk,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IdeDevice {
     pub media_type: MediaType,
     pub boot_index: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VirtioBlkDevice {
     pub boot_index: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum DriveDevice {
     #[serde(rename = "ide")]
@@ -119,7 +119,7 @@ pub enum DriveDevice {
     VirtioBlk(VirtioBlkDevice)
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Drive {
     pub path: String,
     pub device: DriveDevice,
@@ -136,29 +136,29 @@ impl VirtualMachine {
         Ok(vm)
     }
 
-    pub fn save<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
-        println!("{:?}", path.as_ref());
-        for (_, drive) in self.drives.iter_mut() {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let mut unresolved = self.clone();
+        for (_, drive) in unresolved.drives.iter_mut() {
             drive.path = unresolve(&path.as_ref().parent().unwrap_or(Path::new(".")), &drive.path);
         }
-        let vm_str = serde_yaml::to_string(&self).unwrap();
+        let vm_str = serde_yaml::to_string(&unresolved).unwrap();
         std::fs::write(path, vm_str)?;
         Ok(())
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct NetworkDevice {
     pub mac: String,
     pub master: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TapInterface {
     pub device: NetworkDevice,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum NetworkInterface {
     #[serde(rename = "tap")]

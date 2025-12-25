@@ -69,6 +69,6 @@ pub fn get_vm_config_path() -> PathBuf {
 }
 
 pub fn get_vminstance_extension() -> String {
-    "vminstance".to_string()
+    "vm".to_string()
 }
 

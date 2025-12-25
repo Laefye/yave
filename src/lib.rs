@@ -12,7 +12,9 @@ pub enum Error {
     #[error("Config Error: {0}")]
     Config(#[from] vm_types::Error),
     #[error("QMP Error: {0}")]
-    QMP(#[from] qmp::Error)
+    QMP(#[from] qmp::Error),
+    #[error("rtnetlink Error: {0}")]
+    Rnetlink(#[from] rtnetlink::Error),
 }
 
 #[async_trait::async_trait]
