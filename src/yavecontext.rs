@@ -1,11 +1,11 @@
 use std::{collections::HashMap, ffi::OsString, path::{Path, PathBuf}};
 
-use vm_types::{Config, Drive, DriveDevice, Hardware, VNC, VirtioBlkDevice, VirtualMachine};
+use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, TapInterface, VNC, VirtioBlkDevice, VirtualMachine};
 
 use crate::{Error, images::QemuImg, vmcontext::VmContext};
 
 #[derive(Clone)]
-pub struct YaveParams {
+pub struct YaveContextParams {
     pub storage_path: PathBuf,
     pub config_path: PathBuf,
     pub run_path: PathBuf,
@@ -14,9 +14,10 @@ pub struct YaveParams {
     pub vm_ext: OsString,
     pub hd_ext: OsString,
     pub vm_config_name: OsString,
+    pub vm_name_env_variable: String,
 } 
 
-impl YaveParams {
+impl YaveContextParams {
     pub fn with_vm<P: AsRef<Path>>(&self, name: P) -> PathBuf {
         self.storage_path.join(name).with_added_extension(&self.vm_ext)
     }
@@ -27,7 +28,7 @@ impl YaveParams {
 }
 
 pub struct YaveContext {
-    pathes: YaveParams,
+    params: YaveContextParams,
 }
 
 pub enum CreateDriveOptions {
@@ -77,9 +78,9 @@ impl CreateVirtualMachineInput {
 }
 
 impl YaveContext {
-    pub fn new(pathes: YaveParams) -> Self {
+    pub fn new(pathes: YaveContextParams) -> Self {
         Self {
-            pathes,
+            params: pathes,
         }
     }
 
@@ -92,8 +93,8 @@ impl YaveContext {
             networks: HashMap::new(),
         };
 
-        let vm_path = self.pathes.with_vm(&input.name);
-        let vm_config = vm_path.join(&self.pathes.vm_config_name);
+        let vm_path = self.params.with_vm(&input.name);
+        let vm_config = vm_path.join(&self.params.vm_config_name);
 
         std::fs::create_dir_all(&vm_path)?;
 
@@ -101,7 +102,7 @@ impl YaveContext {
             let hd_id = format!("hd{}", i);
             match drive_option {
                 CreateDriveOptions::Empty { size } => {
-                    let hd_file = vm_path.join(&hd_id).with_added_extension(&self.pathes.hd_ext);
+                    let hd_file = vm_path.join(&hd_id).with_added_extension(&self.params.hd_ext);
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
                         device: DriveDevice::VirtioBlk(VirtioBlkDevice {
@@ -113,33 +114,42 @@ impl YaveContext {
                 },
             }
         }
+
+        vm.networks.insert("net0".to_string(), NetworkInterface::Tap(
+            TapInterface {
+                device: NetworkDevice {
+                    mac: vm_types::utils::get_mac(&input.name),
+                    master: None,
+                }
+            } 
+        ));
         
         vm.save(&vm_config)?;
         
         Ok(VmContext::new(
-            self.pathes.clone(),
+            self.params.clone(),
             &vm_config
         ))
     }
 
     pub fn config(&self) -> Result<Config, Error> {
-        Ok(Config::load(&self.pathes.config_path)?)
+        Ok(Config::load(&self.params.config_path)?)
     }
 
     pub fn open_vm(&self, name: &str) -> VmContext {
-        let vm_config_path = self.pathes.with_vm(name).join(&self.pathes.vm_config_name);
+        let vm_config_path = self.params.with_vm(name).join(&self.params.vm_config_name);
         VmContext::new(
-            self.pathes.clone(),
+            self.params.clone(),
             &vm_config_path
         )
     }
 
     pub fn list(&self) -> Result<Vec<String>, Error> {
         let mut vms = Vec::new();
-        for entry in std::fs::read_dir(&self.pathes.storage_path)? {
+        for entry in std::fs::read_dir(&self.params.storage_path)? {
             let entry = entry?;
             if let Some(ext) = entry.path().extension() {
-                if ext == self.pathes.vm_ext {
+                if ext == self.params.vm_ext {
                     vms.push(entry.path().file_stem().unwrap().to_string_lossy().to_string());
                 }
             }

@@ -2,6 +2,8 @@ use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 
+pub mod utils;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to load configuration: {0}")]

@@ -5,10 +5,10 @@ use qmp::types::InvokeCommand;
 use tokio::process::Command;
 use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
 
-use crate::{Error, yavecontext::{YaveContext, YaveParams}};
+use crate::{Error, yavecontext::{YaveContext, YaveContextParams}};
 
 pub struct VmContext {
-    paths: YaveParams,
+    paths: YaveContextParams,
     vm_config_path: PathBuf,
 }
 
@@ -41,7 +41,7 @@ impl VmContext {
         qemu.vnc(&vm.vnc.display, true)
     }
     
-    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, paths: &YaveParams) -> KVM {
+    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, paths: &YaveContextParams) -> KVM {
         for (id, net) in &vm.networks {
             match net {
                 NetworkInterface::Tap(tap) => {
@@ -74,7 +74,7 @@ impl VmContext {
         Ok(qemu.build())
     }
 
-    pub fn new<P: AsRef<Path>>(config_path: YaveParams, vm_config_path: P) -> Self {
+    pub fn new<P: AsRef<Path>>(config_path: YaveContextParams, vm_config_path: P) -> Self {
         Self {
             paths: config_path,
             vm_config_path: vm_config_path.as_ref().to_path_buf(),
@@ -90,17 +90,24 @@ impl VmContext {
     }
 
     pub async fn run(&self) -> Result<(), Error> {
+        let vm_config = self.vm_config()?;
         let args = self.qemu_command()?;
         let mut command = Command::new(&args[0]);
-        let vm_config = self.vm_config()?;
+        command.env(self.paths.vm_name_env_variable.clone(), &vm_config.name);
         command.args(&args[1..]);
         command.status().await?;
-        let qmp = Self::connect(&vm_config, &self.paths).await?;
+        let qmp = Self::create_qmp(&vm_config, &self.paths).await?;
         qmp.invoke(InvokeCommand::set_vnc_password(&vm_config.vnc.password)).await?;
         Ok(())
     }
 
-    pub async fn connect(vm_config: &VirtualMachine, paths: &YaveParams) -> Result<qmp::client::Client, Error> {
+    pub async fn connect_qmp(&self) -> Result<qmp::client::Client, Error> {
+        let vm_config = self.vm_config()?;
+        let qmp = Self::create_qmp(&vm_config, &self.paths).await?;
+        Ok(qmp)
+    }
+
+    pub async fn create_qmp(vm_config: &VirtualMachine, paths: &YaveContextParams) -> Result<qmp::client::Client, Error> {
         let socket_path = paths.with_vm_sock(&vm_config.name);
         let qmp = qmp::client::Client::connect(&socket_path).await?;
         Ok(qmp)

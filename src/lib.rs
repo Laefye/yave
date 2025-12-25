@@ -1,8 +1,8 @@
-use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vminstance_extension}, yavecontext::{YaveContext, YaveParams}};
+use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vminstance_extension}, yavecontext::{YaveContext, YaveContextParams}};
 
 mod constants;
 mod oldvmcontext;
-mod interface;
+pub mod interface;
 mod images;
 pub mod instances;
 pub mod vms;
@@ -32,7 +32,7 @@ pub struct DefaultFacade;
 
 impl Default for YaveContext {
     fn default() -> Self {
-        Self::new(YaveParams {
+        Self::new(YaveContextParams {
             config_path: get_config_path(),
             storage_path: get_vm_config_path(),
             run_path: get_run_path(),
@@ -41,6 +41,7 @@ impl Default for YaveContext {
             net_script_up: get_net_script(true),
             net_script_down: get_net_script(false),
             vm_config_name: "config.yaml".into(),
+            vm_name_env_variable: "YAVE_VM_NAME".into(),
         })
     }
 }

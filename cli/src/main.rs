@@ -76,17 +76,27 @@ async fn main() {
             
         },
         Commands::Shutdown { name } => {
-            facade.invoke(ShutdownVirtualMachinesInput {name}).await.expect("Error with shuting down");
+            let context = YaveContext::default();
+            let vm = context.open_vm(&name);
+            let client = vm.connect_qmp().await.expect("Error connecting to QMP");
+            client.invoke(InvokeCommand::quit()).await.expect("Error with shutting down");
         },
         Commands::Netdev { name, ifname, command } => {
-            facade.invoke(NetdevVirtualMachinesInput {
-                name,
-                ifname,
-                status: match command {
-                    NetdevCommand::Up => true,
-                    NetdevCommand::Down => false,
-                }
-            }).await.expect("Error with shuting down");
+            match command {
+                NetdevCommand::Up => {
+                    let context = YaveContext::default();
+                    let vm = context.open_vm(&name);
+                    
+                    let vm_config = vm.vm_config().expect("Error loading VM config");
+                    let (_, interface) = vm_config.networks.iter().next().expect("No networks configured");
+                    if let Some(master) = &interface.get_network_device().master {
+                        yave::interface::set_master(&ifname, master).await.expect("Error setting master");
+                    }
+
+                    yave::interface::set_link_up(&ifname).await.expect("Error setting link up");
+                },
+                NetdevCommand::Down => todo!(),
+            }
         }
     }
 
