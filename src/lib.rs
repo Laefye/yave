@@ -3,7 +3,6 @@ use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_co
 mod constants;
 mod images;
 pub mod interface;
-pub mod instances;
 pub mod yavecontext;
 pub mod vmcontext;
 
