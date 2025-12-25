@@ -34,6 +34,9 @@ pub struct YaveContext {
 pub enum CreateDriveOptions {
     Empty {
         size: u32,
+    },
+    FromStorage {
+        image: String,
     }
 } 
 
@@ -99,9 +102,9 @@ impl YaveContext {
         std::fs::create_dir_all(&vm_path)?;
 
         for (i, drive_option) in input.drives.iter().enumerate() {
-            let hd_id = format!("hd{}", i);
             match drive_option {
                 CreateDriveOptions::Empty { size } => {
+                    let hd_id = format!("hd{}", i);
                     let hd_file = vm_path.join(&hd_id).with_added_extension(&self.params.hd_ext);
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
@@ -111,6 +114,17 @@ impl YaveContext {
                     });
                     QemuImg::new(self.config()?.kvm.img)
                         .run(*size, &hd_file).await?;
+                },
+                CreateDriveOptions::FromStorage { image } => {
+                    let hd_id = format!("hd{}", i);
+                    let hd_file = vm_path.join(&hd_id).with_added_extension(&self.params.hd_ext);
+                    std::fs::copy(self.params.storage_path.join(&image).with_added_extension(&self.params.hd_ext), &hd_file)?;
+                    vm.drives.insert(hd_id, Drive {
+                        path: hd_file.to_string_lossy().to_string(),
+                        device: DriveDevice::VirtioBlk(VirtioBlkDevice {
+                            boot_index: Some((i as u32) + 1),
+                        })
+                    });
                 },
             }
         }

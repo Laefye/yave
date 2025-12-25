@@ -57,7 +57,10 @@ async fn main() {
             let context = YaveContext::default();
             context.create_vm(
                 CreateVirtualMachineInput::new(&name)
-                    .drive(CreateDriveOptions::Empty { size: capacity })
+                    .drive(match image {
+                        Some(img) => CreateDriveOptions::FromStorage { image: img },
+                        None => CreateDriveOptions::Empty { size: capacity },
+                    })
                     .vcpu(vcpu)
                     .memory(memory)
             ).await.expect("Error with creation");
