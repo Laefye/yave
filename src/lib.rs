@@ -17,6 +17,13 @@ pub enum Error {
     QMP(#[from] qmp::Error),
     #[error("rtnetlink Error: {0}")]
     Rnetlink(#[from] rtnetlink::Error),
+    #[error("Signal Error: {0}")]
+    Signal(#[from] nix::Error),
+    // Errors with logic
+    #[error("VM Instance is not running: {0}")]
+    VMNotRunning(String),
+    #[error("VM Instance is running: {0}")]
+    VMRunning(String),
 }
 
 impl Default for YaveContext {

@@ -1061,6 +1061,7 @@ dependencies = [
  "async-trait",
  "futures-util",
  "nft",
+ "nix",
  "pam",
  "qemu",
  "qmp",

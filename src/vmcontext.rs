@@ -8,7 +8,7 @@ use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
 use crate::{Error, yavecontext::{YaveContext, YaveContextParams}};
 
 pub struct VmContext {
-    paths: YaveContextParams,
+    params: YaveContextParams,
     vm_config_path: PathBuf,
 }
 
@@ -59,8 +59,8 @@ impl VmContext {
 
         let mut qemu = KVM::new(&config.kvm.bin)
             .enable_kvm()
-            .qmp(&self.paths.with_vm_sock(&vm_config.name))
-            .pidfile(&self.paths.run_path.join(&vm_config.name).with_added_extension("pid"))
+            .qmp(&self.params.with_vm_sock(&vm_config.name))
+            .pidfile(&self.params.with_vm_pid(&vm_config.name))
             .daemonize()
             .name(&vm_config.name)
             .memory(vm_config.hardware.memory)
@@ -70,19 +70,19 @@ impl VmContext {
         qemu = Self::build_drives(qemu, &vm_config);
         qemu = Self::add_uefi(qemu, &vm_config, &config);
         qemu = Self::add_vnc(qemu, &vm_config);
-        qemu = Self::add_networks(qemu, &vm_config, &self.paths);
+        qemu = Self::add_networks(qemu, &vm_config, &self.params);
         Ok(qemu.build())
     }
 
     pub fn new<P: AsRef<Path>>(config_path: YaveContextParams, vm_config_path: P) -> Self {
         Self {
-            paths: config_path,
+            params: config_path,
             vm_config_path: vm_config_path.as_ref().to_path_buf(),
         }
     }
 
     pub fn yave_context(&self) -> YaveContext {
-        YaveContext::new(self.paths.clone())
+        YaveContext::new(self.params.clone())
     }
     
     pub fn vm_config(&self) -> Result<VirtualMachine, Error> {
@@ -91,25 +91,51 @@ impl VmContext {
 
     pub async fn run(&self) -> Result<(), Error> {
         let vm_config = self.vm_config()?;
+        if Self::_is_running(&vm_config, &self.params).await? {
+            return Err(Error::VMRunning(vm_config.name));
+        }
         let args = self.qemu_command()?;
         let mut command = Command::new(&args[0]);
-        command.env(self.paths.vm_name_env_variable.clone(), &vm_config.name);
+        command.env(self.params.vm_name_env_variable.clone(), &vm_config.name);
         command.args(&args[1..]);
         command.status().await?;
-        let qmp = Self::create_qmp(&vm_config, &self.paths).await?;
+        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
         qmp.invoke(InvokeCommand::set_vnc_password(&vm_config.vnc.password)).await?;
         Ok(())
     }
 
     pub async fn connect_qmp(&self) -> Result<qmp::client::Client, Error> {
         let vm_config = self.vm_config()?;
-        let qmp = Self::create_qmp(&vm_config, &self.paths).await?;
+        if !Self::_is_running(&vm_config, &self.params).await? {
+            return Err(Error::VMNotRunning(vm_config.name));
+        }
+        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
         Ok(qmp)
     }
 
-    pub async fn create_qmp(vm_config: &VirtualMachine, paths: &YaveContextParams) -> Result<qmp::client::Client, Error> {
+    async fn create_qmp(vm_config: &VirtualMachine, paths: &YaveContextParams) -> Result<qmp::client::Client, Error> {
         let socket_path = paths.with_vm_sock(&vm_config.name);
         let qmp = qmp::client::Client::connect(&socket_path).await?;
         Ok(qmp)
+    }
+
+    async fn _is_running(vm: &VirtualMachine, paths: &YaveContextParams) -> Result<bool, Error> {
+        let pid_path = paths.with_vm_pid(&vm.name);
+        let pid_str = match std::fs::read_to_string(pid_path) {
+            Ok(s) => s,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(e) => return Err(Error::IO(e)),
+        };
+        let pid: i32 = pid_str.trim().parse().unwrap_or(0);
+        match nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), None) {
+            Ok(_) => Ok(true),
+            Err(nix::errno::Errno::ESRCH) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub async fn is_running(&self) -> Result<bool, Error> {
+        let vm_config = self.vm_config()?;
+        Self::_is_running(&vm_config, &self.params).await
     }
 }

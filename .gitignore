@@ -8,5 +8,4 @@
 
 # Ignore vminstances
 *.vm
-.debpkg
-.debpkg.deb
+vnc_table.yaml

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ffi::OsString, path::{Path, PathBuf}};
 
-use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, TapInterface, VNC, VirtioBlkDevice, VirtualMachine};
+use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine};
 
 use crate::{Error, images::QemuImg, vmcontext::VmContext};
 
@@ -25,6 +25,10 @@ impl YaveContextParams {
     pub fn with_vm_sock<P: AsRef<Path>>(&self, name: P) -> PathBuf {
         self.run_path.join(name).with_added_extension("sock")
     }
+
+    pub fn with_vm_pid<P: AsRef<Path>>(&self, name: P) -> PathBuf {
+        self.run_path.join(name).with_added_extension("pid")
+    }
 }
 
 pub struct YaveContext {
@@ -43,7 +47,6 @@ pub enum CreateDriveOptions {
 pub struct CreateVirtualMachineInput {
     name: String,
     hardware: Hardware,
-    vnc: VNC,
     drives: Vec<CreateDriveOptions>,
 }
 
@@ -55,10 +58,6 @@ impl CreateVirtualMachineInput {
                 memory: 1024,
                 vcpu: 1,
                 ovmf: Some(true),
-            },
-            vnc: VNC {
-                display: ":1".to_string(),
-                password: "12345678".to_string(),
             },
             drives: Vec::new(),
         }
@@ -88,10 +87,15 @@ impl YaveContext {
     }
 
     pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<VmContext, Error> {
+        let mut vnc_table = self.vnc_table()?;
+
         let mut vm = VirtualMachine {
             name: input.name.clone(),
             hardware: input.hardware,
-            vnc: input.vnc,
+            vnc: VNC {
+                display: vnc_table.find_free_display(),
+                password: "12345678".to_string(),
+            },
             drives: HashMap::new(),
             networks: HashMap::new(),
         };
@@ -138,8 +142,11 @@ impl YaveContext {
             } 
         ));
         
-        vm.save(&vm_config)?;
         
+        vm.save(&vm_config)?;
+        vnc_table.table.insert(vm.vnc.display.clone(), input.name.clone());
+        self.update_vnc_table(&vnc_table)?;
+
         Ok(VmContext::new(
             self.params.clone(),
             &vm_config
@@ -169,5 +176,18 @@ impl YaveContext {
             }
         }
         Ok(vms)
+    }
+
+    pub fn vnc_table(&self) -> Result<VNCTable, Error> {
+        Ok(VNCTable::load(
+            &self.params.storage_path.join("vnc_table.yaml")
+        )?)
+    }
+
+    pub fn update_vnc_table(&self, table: &VNCTable) -> Result<(), Error> {
+        table.save(
+            &self.params.storage_path.join("vnc_table.yaml")
+        )?;
+        Ok(())
     }
 }

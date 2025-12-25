@@ -174,3 +174,47 @@ impl<'a> NetworkInterface {
         }
     }
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct VNCTable {
+    pub table: HashMap<String, String>,
+}
+
+impl Default for VNCTable {
+    fn default() -> Self {
+        Self {
+            table: HashMap::new(),
+        }
+    }
+}
+
+impl VNCTable {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let vnc_str = serde_yaml::to_string(&self).unwrap();
+        std::fs::write(path, vnc_str)?;
+        Ok(())
+    }
+
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let vnc_str = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(VNCTable::default());
+            }
+            Err(e) => return Err(Error::IO(e)),
+        };
+        let vnc_table = serde_yaml::from_str::<VNCTable>(&vnc_str)?;
+        Ok(vnc_table)
+    }
+
+    pub fn find_free_display(&self) -> String {
+        let mut display = 1;
+        loop {
+            let display_str = format!(":{}", display);
+            if !self.table.contains_key(&display_str) {
+                return display_str;
+            }
+            display += 1;
+        }
+    }
+}
