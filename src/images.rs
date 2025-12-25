@@ -3,12 +3,12 @@ use std::path::Path;
 use qemu::Img;
 use tokio::process::Command;
 
-pub struct Images {
+pub struct QemuImg {
     img_tool: String,
 }
 
-impl Images {
-    pub fn new<P: AsRef<Path>>(p: P) -> Images {
+impl QemuImg {
+    pub fn new<P: AsRef<Path>>(p: P) -> QemuImg {
         if !p.as_ref().is_absolute() {
             panic!("Need absolute path")
         }

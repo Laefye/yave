@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ use crate::{
         get_vm_config_path,
         get_vm_env_variable,
         get_vminstance_extension
-    }, images::Images, interface::{set_link_up, set_master}, vmcontext::VmContext
+    }, images::QemuImg, interface::{set_link_up, set_master}, oldvmcontext::OldVmContext
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,12 +47,12 @@ fn make_config(input: &VirtualMachineCreateInput) -> VirtualMachine {
     let mut networks = HashMap::new();
     networks.insert("net0".to_string(), NetworkInterface::Tap(TapInterface {
         device: NetworkDevice {
-            mac: "52:54:00:12:34:56".to_string(),
+            mac: get_mac(&input.name),
             master: None,
         }
     }));
     VirtualMachine {
-        vnc: VNC { port: ":1".to_string(), password: "12345678".to_string() },
+        vnc: VNC { display: ":1".to_string(), password: "12345678".to_string() },
         name: input.name.clone(),
         drives,
         hardware: Hardware {
@@ -82,7 +82,7 @@ impl Facade<VirtualMachineCreateInput> for DefaultFacade {
         
         match input.os {
             InputOperatingSystem::Empty => {
-                let image = Images::new(config.kvm.img);
+                let image = QemuImg::new(config.kvm.img);
                 image.run(input.capacity, vm_dir.join("hd0.qcow2")).await.expect("Ikd");
             },
             InputOperatingSystem::Image(image_name) => {
@@ -133,7 +133,7 @@ impl Facade<RunVirtualMachinesInput> for DefaultFacade {
                 .join("config.yaml")
             )?;
         
-        let run = VmContext::new(
+        let run = OldVmContext::new(
             &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
@@ -165,7 +165,7 @@ impl Facade<ShutdownVirtualMachinesInput> for DefaultFacade {
                 .join("config.yaml")
             )?;
         
-        let run = VmContext::new(
+        let run = OldVmContext::new(
             &get_run_path(),
             &get_net_script(true),
             &get_net_script(false), &vm_config, &config,
@@ -210,4 +210,23 @@ impl Facade<NetdevVirtualMachinesInput> for DefaultFacade {
 
         Ok(())
     }
+}
+
+fn get_mac(name: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    name.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let mut mac = [0u8; 6];
+    mac[0] = 0x02;
+    mac[1] = ((hash >> 0) & 0xff) as u8;
+    mac[2] = ((hash >> 8) & 0xff) as u8;
+    mac[3] = ((hash >> 16) & 0xff) as u8;
+    mac[4] = ((hash >> 24) & 0xff) as u8;
+    mac[5] = ((hash >> 32) & 0xff) as u8;
+
+    mac.iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<Vec<_>>()
+        .join(":")
 }

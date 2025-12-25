@@ -1,9 +1,7 @@
-use std::path::{Path, PathBuf};
-
 use clap::{Parser, Subcommand};
-use yave::{DefaultFacade, Facade, vms::{InputOperatingSystem, ListVirtualMachinesInput, NetdevVirtualMachinesInput, RunVirtualMachinesInput, ShutdownVirtualMachinesInput, VirtualMachineCreateInput}};
+use qmp::types::InvokeCommand;
+use yave::{DefaultFacade, Facade, vms::{InputOperatingSystem, ListVirtualMachinesInput, NetdevVirtualMachinesInput, RunVirtualMachinesInput, ShutdownVirtualMachinesInput, VirtualMachineCreateInput}, yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, YaveContext}};
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -24,7 +22,7 @@ enum Commands {
         name: String,
         #[arg(short, long, default_value = "1")]
         vcpu: u32,
-        #[arg(short, long, default_value = "512")]
+        #[arg(short, long, default_value = "1024")]
         memory: u32,
         #[arg(short, long, default_value = "15360")]
         capacity: u32,
@@ -56,25 +54,26 @@ async fn main() {
     let facade = DefaultFacade{};
     match args.cmd {
         Commands::Create { name, vcpu, memory, capacity, image } => {
-            facade.invoke(VirtualMachineCreateInput{
-                name,
-                vcpu,
-                memory,
-                capacity,
-                os: match image {
-                    None => InputOperatingSystem::Empty,
-                    Some(path) => InputOperatingSystem::Image(path)
-                },
-            }).await.expect("Error with creating");
+            let context = YaveContext::default();
+            context.create_vm(
+                CreateVirtualMachineInput::new(&name)
+                    .drive(CreateDriveOptions::Empty { size: capacity })
+                    .vcpu(vcpu)
+                    .memory(memory)
+            ).await.expect("Error with creation");
         },
         Commands::List => {
-            let vms = facade.invoke(ListVirtualMachinesInput).await.expect("Errow with listing");
+            let context = YaveContext::default();
+            let vms = context.list().expect("Error listing VMs");
             for vm in vms  {
                 println!("{}", vm);
             }
         },
         Commands::Run { name } => {
-            facade.invoke(RunVirtualMachinesInput {name}).await.expect("Error with running");
+            let context = YaveContext::default();
+            let vm = context.open_vm(&name);
+            vm.run().await.expect("Error running VM");
+            
         },
         Commands::Shutdown { name } => {
             facade.invoke(ShutdownVirtualMachinesInput {name}).await.expect("Error with shuting down");

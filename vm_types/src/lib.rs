@@ -78,7 +78,7 @@ pub struct Hardware {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VNC {
-    pub port: String,
+    pub display: String,
     pub password: String,
 }
 
@@ -171,5 +171,4 @@ impl<'a> NetworkInterface {
             NetworkInterface::Tap(tap_interface) => &tap_interface.device,
         }
     }
-
 }
