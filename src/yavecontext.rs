@@ -31,6 +31,7 @@ impl YaveContextParams {
     }
 }
 
+#[derive(Clone)]
 pub struct YaveContext {
     params: YaveContextParams,
 }
@@ -157,12 +158,17 @@ impl YaveContext {
         Ok(Config::load(&self.params.config_path)?)
     }
 
-    pub fn open_vm(&self, name: &str) -> VmContext {
+    pub fn open_vm(&self, name: &str) -> Result<VmContext, Error> {
         let vm_config_path = self.params.with_vm(name).join(&self.params.vm_config_name);
-        VmContext::new(
-            self.params.clone(),
-            &vm_config_path
-        )
+        if !std::fs::exists(&self.params.with_vm(name))? {
+            Err(Error::VMNotFound(name.into()))
+        } else {
+            Ok(VmContext::new(
+                self.params.clone(),
+                &vm_config_path
+            ))
+        }
+        
     }
 
     pub fn list(&self) -> Result<Vec<String>, Error> {

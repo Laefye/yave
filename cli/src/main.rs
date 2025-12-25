@@ -74,13 +74,13 @@ async fn main() {
         },
         Commands::Run { name } => {
             let context = YaveContext::default();
-            let vm = context.open_vm(&name);
+            let vm = context.open_vm(&name).expect("Can't open vm");
             vm.run().await.expect("Error running VM");
             
         },
         Commands::Shutdown { name } => {
             let context = YaveContext::default();
-            let vm = context.open_vm(&name);
+            let vm = context.open_vm(&name).expect("Can't open vm");
             let client = vm.connect_qmp().await.expect("Error connecting to QMP");
             client.invoke(InvokeCommand::quit()).await.expect("Error with shutting down");
         },
@@ -88,7 +88,7 @@ async fn main() {
             match command {
                 NetdevCommand::Up => {
                     let context = YaveContext::default();
-                    let vm = context.open_vm(&name);
+                    let vm = context.open_vm(&name).expect("Can't open vm");
                     
                     let vm_config = vm.vm_config().expect("Error loading VM config");
                     let (_, interface) = vm_config.networks.iter().next().expect("No networks configured");

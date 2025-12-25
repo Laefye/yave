@@ -23,6 +23,8 @@ pub enum Error {
     VMNotRunning(String),
     #[error("VM Instance is running: {0}")]
     VMRunning(String),
+    #[error("VM {0} not found")]
+    VMNotFound(String)
 }
 
 impl Default for YaveContext {

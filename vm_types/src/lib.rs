@@ -45,6 +45,7 @@ pub struct OVMF {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct API {
     pub groups: Vec<String>,
+    pub listen: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
