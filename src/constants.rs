@@ -52,10 +52,6 @@ pub fn get_net_script(up: bool) -> PathBuf {
     }
 }
 
-pub fn get_vm_env_variable() -> String {
-    "YAVE_NAME".to_string()
-}
-
 #[cfg(debug_assertions)]
 pub fn get_vm_config_path() -> PathBuf {
     std::env::current_dir()

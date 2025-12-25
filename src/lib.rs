@@ -1,11 +1,9 @@
 use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vminstance_extension}, yavecontext::{YaveContext, YaveContextParams}};
 
 mod constants;
-mod oldvmcontext;
-pub mod interface;
 mod images;
+pub mod interface;
 pub mod instances;
-pub mod vms;
 pub mod yavecontext;
 pub mod vmcontext;
 
@@ -20,15 +18,6 @@ pub enum Error {
     #[error("rtnetlink Error: {0}")]
     Rnetlink(#[from] rtnetlink::Error),
 }
-
-#[async_trait::async_trait]
-pub trait Facade<T> {
-    type Output;
-
-    async fn invoke(&self, params: T) -> Result<Self::Output, Error>;
-}
-
-pub struct DefaultFacade;
 
 impl Default for YaveContext {
     fn default() -> Self {

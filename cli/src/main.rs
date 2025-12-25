@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
-use yave::{DefaultFacade, Facade, vms::{InputOperatingSystem, ListVirtualMachinesInput, NetdevVirtualMachinesInput, RunVirtualMachinesInput, ShutdownVirtualMachinesInput, VirtualMachineCreateInput}, yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, YaveContext}};
+use yave::yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, YaveContext};
+
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -51,7 +52,6 @@ enum Commands {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let facade = DefaultFacade{};
     match args.cmd {
         Commands::Create { name, vcpu, memory, capacity, image } => {
             let context = YaveContext::default();
