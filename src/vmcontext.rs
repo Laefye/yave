@@ -91,7 +91,7 @@ impl VmContext {
 
     pub async fn run(&self) -> Result<(), Error> {
         let vm_config = self.vm_config()?;
-        if Self::_is_running(&vm_config, &self.params).await? {
+        if Self::vm_is_running(&vm_config, &self.params).await? {
             return Err(Error::VMRunning(vm_config.name));
         }
         let args = self.qemu_command()?;
@@ -104,9 +104,19 @@ impl VmContext {
         Ok(())
     }
 
+    pub async fn shutdown(&self) -> Result<(), Error> {
+        let vm_config = self.vm_config()?;
+        if !Self::vm_is_running(&vm_config, &self.params).await? {
+            return Err(Error::VMNotRunning(vm_config.name));
+        }
+        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
+        qmp.invoke(InvokeCommand::quit()).await?;
+        Ok(())
+    }
+
     pub async fn connect_qmp(&self) -> Result<qmp::client::Client, Error> {
         let vm_config = self.vm_config()?;
-        if !Self::_is_running(&vm_config, &self.params).await? {
+        if !Self::vm_is_running(&vm_config, &self.params).await? {
             return Err(Error::VMNotRunning(vm_config.name));
         }
         let qmp = Self::create_qmp(&vm_config, &self.params).await?;
@@ -119,7 +129,7 @@ impl VmContext {
         Ok(qmp)
     }
 
-    async fn _is_running(vm: &VirtualMachine, paths: &YaveContextParams) -> Result<bool, Error> {
+    async fn vm_is_running(vm: &VirtualMachine, paths: &YaveContextParams) -> Result<bool, Error> {
         let pid_path = paths.with_vm_pid(&vm.name);
         let pid_str = match std::fs::read_to_string(pid_path) {
             Ok(s) => s,
@@ -136,6 +146,6 @@ impl VmContext {
 
     pub async fn is_running(&self) -> Result<bool, Error> {
         let vm_config = self.vm_config()?;
-        Self::_is_running(&vm_config, &self.params).await
+        Self::vm_is_running(&vm_config, &self.params).await
     }
 }

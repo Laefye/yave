@@ -1,4 +1,4 @@
-use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{get, post}};
+use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{delete, get, post}};
 use axum_auth::AuthBasic;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +9,7 @@ pub fn router() -> Router<AppState> {
         .route("/vms/", get(get_vms))
         .route("/vms/{vm}", get(get_vm))
         .route("/vms/{vm}/run", post(run_vm))
+        .route("/vms/{vm}/run", delete(shutdown_vm))
         .route("/vms/{vm}/run", get(get_run_vm))
 }
 
@@ -89,4 +90,12 @@ async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
     Ok(Json::from(RunStatus {
         is_running: vm.is_running().await?,
     }))
+}
+
+async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
+    auth::check(&auth, &state.context.config()?)?;
+
+    let vm = state.context.open_vm(&vm)?;
+    vm.shutdown().await?;
+    Ok(Json::from(()))
 }

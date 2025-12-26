@@ -3,7 +3,6 @@ use std::ffi::{OsStr, OsString};
 use axum_auth::AuthBasic;
 use nonstick::{AuthnFlags, ConversationAdapter, Transaction, TransactionBuilder};
 use vm_types::Config;
-use yave::yavecontext::YaveContext;
 
 struct UsernamePassConvo {
     username: String,

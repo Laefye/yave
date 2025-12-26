@@ -1,8 +1,4 @@
-use axum::{
-    Json, Router, extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{get, post}
-};
-use axum_auth::AuthBasic;
-use serde::{Deserialize, Serialize};
+use axum::Router;
 use yave::yavecontext::YaveContext;
 
 mod auth;
