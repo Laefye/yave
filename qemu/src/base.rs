@@ -75,4 +75,14 @@ impl Img {
             .arg(path)
             .arg(&format!("{}M", size))
     }
+
+    pub fn convert(self, format: ImgFormat, src: &str, dest: &str) -> Self {
+        self.arg("convert")
+            .arg("-O")
+            .arg(match format {
+                ImgFormat::Qcow2 => "qcow2",
+            })
+            .arg(src)
+            .arg(dest)
+    }
 }

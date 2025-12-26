@@ -1,7 +1,7 @@
 use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vminstance_extension}, yavecontext::{YaveContext, YaveContextParams}};
 
 mod constants;
-mod images;
+mod tools;
 pub mod interface;
 pub mod yavecontext;
 pub mod vmcontext;
@@ -39,6 +39,8 @@ impl Default for YaveContext {
             net_script_down: get_net_script(false),
             vm_config_name: "config.yaml".into(),
             vm_name_env_variable: "YAVE_VM_NAME".into(),
+            preset_ext: "preset".into(),
+            cloud_init_iso_name: "cloudinit.iso".into(),
         })
     }
 }

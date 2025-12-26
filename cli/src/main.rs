@@ -28,7 +28,9 @@ enum Commands {
         #[arg(short, long, default_value = "15360")]
         capacity: u32,
         #[arg(short, long)]
-        image: Option<String>
+        image: Option<String>,
+        #[arg(short, long)]
+        preset: Option<String>,
     },
     List,
     Run {
@@ -53,7 +55,7 @@ enum Commands {
 async fn main() {
     let args = Args::parse();
     match args.cmd {
-        Commands::Create { name, vcpu, memory, capacity, image } => {
+        Commands::Create { name, vcpu, memory, capacity, image, preset: None } => {
             let context = YaveContext::default();
             context.create_vm(
                 CreateVirtualMachineInput::new(&name)
@@ -64,6 +66,15 @@ async fn main() {
                     .vcpu(vcpu)
                     .memory(memory)
             ).await.expect("Error with creation");
+        },
+        Commands::Create { name, vcpu, memory, capacity, image, preset: Some(preset) } => {
+            let context = YaveContext::default();
+            context.create_vm(
+                CreateVirtualMachineInput::new(&name)
+                    .drive(CreateDriveOptions::FromPreset { size: capacity, preset })
+                    .vcpu(vcpu)
+                    .memory(memory)
+            ).await.expect("Error with creation from preset");
         },
         Commands::List => {
             let context = YaveContext::default();
@@ -81,8 +92,7 @@ async fn main() {
         Commands::Shutdown { name } => {
             let context = YaveContext::default();
             let vm = context.open_vm(&name).expect("Can't open vm");
-            let client = vm.connect_qmp().await.expect("Error connecting to QMP");
-            client.invoke(InvokeCommand::quit()).await.expect("Error with shutting down");
+            vm.shutdown().await.expect("Error shutting down VM");
         },
         Commands::Netdev { name, ifname, command } => {
             match command {

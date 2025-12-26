@@ -57,7 +57,7 @@ impl VmContext {
         let config = self.yave_context().config()?;
         let vm_config = self.vm_config()?;
 
-        let mut qemu = KVM::new(&config.kvm.bin)
+        let mut qemu = KVM::new(&config.cli.bin)
             .enable_kvm()
             .qmp(&self.params.with_vm_sock(&vm_config.name))
             .pidfile(&self.params.with_vm_pid(&vm_config.name))

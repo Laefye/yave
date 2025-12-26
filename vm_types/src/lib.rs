@@ -50,22 +50,23 @@ pub struct API {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
-    pub kvm: KVM,
+    pub cli: CLI,
     pub ovmf: OVMF,
     pub api: API,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct KVM {
+pub struct CLI {
     pub bin: String,
     pub img: String,
+    pub genisoimage: String,
 }
 
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let config_str = std::fs::read_to_string(path)?;
         let mut config: Config = serde_yaml::from_str(&config_str)?;
-        config.kvm.bin = resolve(path, &config.kvm.bin);
+        config.cli.bin = resolve(path, &config.cli.bin);
         config.ovmf.code = resolve(path, &config.ovmf.code);
         config.ovmf.vars = resolve(path, &config.ovmf.vars);
         Ok(config)
@@ -217,5 +218,19 @@ impl VNCTable {
             }
             display += 1;
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Preset {
+    pub cloudimg: String
+}
+
+impl Preset {
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let preset_str = std::fs::read_to_string(&path)?;
+        let mut preset: Preset = serde_yaml::from_str(&preset_str)?;
+        preset.cloudimg = resolve(&path, &preset.cloudimg);
+        Ok(preset)
     }
 }
