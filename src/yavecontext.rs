@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ffi::OsString, path::{Path, PathBuf}};
 
-use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, Preset, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine};
+use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, Preset, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine, cloudinit::{Chpasswd, CloudConfig, PowerState}};
 
 use crate::{Error, presetinstaller::PresetInstaller, tools::QemuImg, vmcontext::VmContext};
 
@@ -51,23 +51,42 @@ pub enum CreateDriveOptions {
     },
 } 
 
+pub struct Passwords {
+    pub root: String,
+    pub vnc: String,
+}
+
 pub struct CreateVirtualMachineInput {
     name: String,
+    hostname: Option<String>,
     hardware: Hardware,
     drives: Vec<CreateDriveOptions>,
+    passwords: Option<Passwords>,
 }
 
 impl CreateVirtualMachineInput {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
+            hostname: None,
             hardware: Hardware {
                 memory: 1024,
                 vcpu: 1,
                 ovmf: Some(true),
             },
             drives: Vec::new(),
+            passwords: None,
         }
+    }
+
+    pub fn hostname(mut self, hostname: &str) -> Self {
+        self.hostname = Some(hostname.to_string());
+        self
+    }
+
+    pub fn passwords(mut self, passwords: Passwords) -> Self {
+        self.passwords = Some(passwords);
+        self
     }
     
     pub fn drive(mut self, drive: CreateDriveOptions) -> Self{
@@ -93,16 +112,32 @@ impl YaveContext {
         }
     }
 
+    async fn create_cloud_init_config(&self, passwords: &Passwords, hostname: &str) -> Result<CloudConfig, Error> {
+        let cloud_config = CloudConfig {
+            hostname: hostname.to_string(),
+            chpasswd: Chpasswd {
+                expire: false,
+            },
+            power_state: PowerState::default(),
+            password: passwords.root.clone(),
+            ssh_pwauth: true,
+        };
+        Ok(cloud_config)
+    }
+
     pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<VmContext, Error> {
         let mut vnc_table = self.vnc_table()?;
 
         let mut vm = VirtualMachine {
             name: input.name.clone(),
             hardware: input.hardware,
-            vnc: Some(VNC {
-                display: vnc_table.find_free_display(),
-                password: "12345678".to_string(),
-            }),
+            vnc: match &input.passwords {
+                Some(passwords) => Some(VNC {
+                    display: vnc_table.find_free_display(),
+                    password: passwords.vnc.clone(),
+                }),
+                None => None,
+            },
             drives: HashMap::new(),
             networks: HashMap::new(),
         };
@@ -148,7 +183,11 @@ impl YaveContext {
                         .convert(&preset.cloudimg, &hd_file).await?;
                     QemuImg::new(self.config()?.cli.img)
                         .resize(*size, &hd_file).await?;
-                    let preset_installer = PresetInstaller::new(vm.clone(), &hd_file);
+                    let cloud_init_config = self.create_cloud_init_config(
+                        input.passwords.as_ref().unwrap(),
+                        &input.hostname.as_ref().unwrap_or(&input.name),
+                    ).await?;
+                    let preset_installer = PresetInstaller::new(vm.clone(), &hd_file, cloud_init_config);
                     preset_installer.install(&config, &self.params).await?;
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),

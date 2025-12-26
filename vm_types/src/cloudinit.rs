@@ -29,6 +29,7 @@ impl Default for PowerState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudConfig {
+    pub hostname: String,
     pub password: String,
     pub chpasswd: Chpasswd,
     pub ssh_pwauth: bool,

@@ -1,20 +1,22 @@
 use std::path::PathBuf;
 
 use tempfile::tempdir;
-use vm_types::{Config, Drive, DriveDevice, VirtioBlkDevice, VirtualMachine, cloudinit::{Chpasswd, CloudConfig, PowerState}};
+use vm_types::{Config, Drive, DriveDevice, VirtioBlkDevice, VirtualMachine, cloudinit::CloudConfig};
 
 use crate::{Error, tools::GenIsoImage, vmrunner::VmRunner, yavecontext::YaveContextParams};
 
 pub struct PresetInstaller {
     input_drive: PathBuf,
     base_vm: VirtualMachine,
+    cloud_init_config: CloudConfig,
 }
 
 impl PresetInstaller {
-    pub fn new<P: AsRef<std::path::Path>>(base_vm: VirtualMachine, input_drive: P) -> Self {
+    pub fn new<P: AsRef<std::path::Path>>(base_vm: VirtualMachine, input_drive: P, cloud_init_config: CloudConfig) -> Self {
         Self {
             input_drive: input_drive.as_ref().to_path_buf(),
             base_vm,
+            cloud_init_config: cloud_init_config,
         }
     }
 
@@ -43,16 +45,7 @@ impl PresetInstaller {
     }
 
     pub async fn create_iso_image(&self, source_iso_dir: &tempfile::TempDir, output_iso: &PathBuf, config: &Config) -> Result<(), Error> {
-        let user_data = CloudConfig {
-            chpasswd: Chpasswd {
-                expire: false,
-            },
-            password: "123".to_string(),
-            ssh_pwauth: true,
-            power_state: PowerState::default(),
-        };
-        println!("{}", user_data.to_yaml()?);
-        std::fs::write(source_iso_dir.path().join("user-data"), user_data.to_yaml()?)?;
+        std::fs::write(source_iso_dir.path().join("user-data"), self.cloud_init_config.to_yaml()?)?;
         std::fs::write(source_iso_dir.path().join("meta-data"), "")?;
         std::fs::write(source_iso_dir.path().join("network-config"), "")?;
 

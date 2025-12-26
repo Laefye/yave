@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use yave::yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, YaveContext};
+use yave::yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, Passwords, YaveContext};
 
 
 #[derive(Parser, Debug)]
@@ -30,6 +30,12 @@ enum Commands {
         image: Option<String>,
         #[arg(short, long)]
         preset: Option<String>,
+        #[arg(short='H', long)]
+        hostname: Option<String>,
+        #[arg(short, long, default_value = "")]
+        root_password: Option<String>,
+        #[arg(short='V', long, default_value = "12345678")]
+        vnc_password: Option<String>,
     },
     List,
     Run {
@@ -54,10 +60,15 @@ enum Commands {
 async fn main() {
     let args = Args::parse();
     match args.cmd {
-        Commands::Create { name, vcpu, memory, capacity, image, preset: None } => {
+        Commands::Create { name, vcpu, memory, capacity, image, preset: None, hostname, root_password, vnc_password } => {
             let context = YaveContext::default();
             context.create_vm(
                 CreateVirtualMachineInput::new(&name)
+                    .hostname(hostname.as_deref().unwrap_or(&name))
+                    .passwords(Passwords {
+                        root: root_password.unwrap_or_default(),
+                        vnc: vnc_password.unwrap_or_default(),
+                    })
                     .drive(match image {
                         Some(img) => CreateDriveOptions::FromStorage { image: img },
                         None => CreateDriveOptions::Empty { size: capacity },
@@ -66,10 +77,15 @@ async fn main() {
                     .memory(memory)
             ).await.expect("Error with creation");
         },
-        Commands::Create { name, vcpu, memory, capacity, image: _, preset: Some(preset) } => {
+        Commands::Create { name, vcpu, memory, capacity, image: _, preset: Some(preset), hostname, root_password, vnc_password } => {
             let context = YaveContext::default();
             context.create_vm(
                 CreateVirtualMachineInput::new(&name)
+                    .hostname(hostname.as_deref().unwrap_or(&name))
+                    .passwords(Passwords {
+                        root: root_password.unwrap_or_default(),
+                        vnc: vnc_password.unwrap_or_default(),
+                    })
                     .drive(CreateDriveOptions::FromPreset { size: capacity, preset })
                     .vcpu(vcpu)
                     .memory(memory)
