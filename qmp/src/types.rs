@@ -26,23 +26,21 @@ pub struct CommandResponse {
     #[serde(default)]
     pub id: Option<Value>,
     #[serde(rename = "return")]
-    pub result: Option<Value>,
+    pub result: Value,
     pub error: Option<CommandError>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Event {
     pub event: String,
-    #[serde(default)]
-    pub data: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
     Greeting(Greeting),
-    CommandResponse(CommandResponse),
     Event(Event),
+    CommandResponse(CommandResponse),
 }
 
 #[derive(Debug, Serialize)]

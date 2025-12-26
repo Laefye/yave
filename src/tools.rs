@@ -26,7 +26,7 @@ impl QemuImg {
             .build()
     }
 
-    fn convert_command<P: AsRef<Path>, Q: AsRef<Path>>(&self, size: u32, path: P, dest: Q) -> Vec<String> {
+    fn convert_command<P: AsRef<Path>, Q: AsRef<Path>>(&self, path: P, dest: Q) -> Vec<String> {
         if !path.as_ref().is_absolute() {
             panic!("Need absolute path")
         }
@@ -43,8 +43,8 @@ impl QemuImg {
         Ok(())
     }
 
-    pub async fn convert<P: AsRef<Path>, Q: AsRef<Path>>(&self, size: u32, path: P, dest: Q) -> Result<(), std::io::Error> {
-        let args = self.convert_command(size, path, dest);
+    pub async fn convert<P: AsRef<Path>, Q: AsRef<Path>>(&self, path: P, dest: Q) -> Result<(), std::io::Error> {
+        let args = self.convert_command(path, dest);
         let mut command = Command::new(&args[0]);
         command.args(&args[1..]);
         command.status().await?;

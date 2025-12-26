@@ -1,11 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use qemu::KVM;
 use qmp::types::InvokeCommand;
-use tokio::process::Command;
-use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
+use vm_types::VirtualMachine;
 
-use crate::{Error, yavecontext::{YaveContext, YaveContextParams}};
+use crate::{Error, vmrunner::VmRunner, yavecontext::{YaveContext, YaveContextParams}};
 
 pub struct VmContext {
     params: YaveContextParams,
@@ -13,67 +11,6 @@ pub struct VmContext {
 }
 
 impl VmContext {
-    fn build_drives(mut qemu: KVM, vm: &VirtualMachine) -> KVM {
-        for (id, drive) in &vm.drives {
-            qemu = qemu.drive(id, &drive.path);
-            qemu = match &drive.device {
-                DriveDevice::Ide(ide_device) => {
-                    qemu.ide_device(id, ide_device.boot_index, &ide_device.media_type)
-                },
-                DriveDevice::VirtioBlk(virtio_blk_device) => {
-                    qemu.virtio_blk(id, virtio_blk_device.boot_index)
-                },
-            }
-        }
-        qemu
-    }
-
-    fn add_uefi(mut qemu: KVM, vm: &VirtualMachine, config: &Config) -> KVM {
-        if let Some(true) = vm.hardware.ovmf {
-            let code = config.ovmf.code.clone();
-            let vars = config.ovmf.vars.clone();
-            qemu = qemu.ovmf(code, vars);
-        }
-        qemu
-    }
-
-    fn add_vnc(qemu: KVM, vm: &VirtualMachine) -> KVM {
-        qemu.vnc(&vm.vnc.display, true)
-    }
-    
-    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, paths: &YaveContextParams) -> KVM {
-        for (id, net) in &vm.networks {
-            match net {
-                NetworkInterface::Tap(tap) => {
-                    qemu = qemu.netdev_tap(id, Some(&paths.net_script_up), Some(&paths.net_script_down));
-                    qemu = qemu.network_device(id, &tap.device.mac);
-                },
-            }
-        }
-        qemu
-    }
-
-    fn qemu_command(&self) -> Result<Vec<String>, Error> {
-        let config = self.yave_context().config()?;
-        let vm_config = self.vm_config()?;
-
-        let mut qemu = KVM::new(&config.cli.bin)
-            .enable_kvm()
-            .qmp(&self.params.with_vm_sock(&vm_config.name))
-            .pidfile(&self.params.with_vm_pid(&vm_config.name))
-            .daemonize()
-            .name(&vm_config.name)
-            .memory(vm_config.hardware.memory)
-            .smp(vm_config.hardware.vcpu)
-            .virtio_vga()
-            .nodefaults();
-        qemu = Self::build_drives(qemu, &vm_config);
-        qemu = Self::add_uefi(qemu, &vm_config, &config);
-        qemu = Self::add_vnc(qemu, &vm_config);
-        qemu = Self::add_networks(qemu, &vm_config, &self.params);
-        Ok(qemu.build())
-    }
-
     pub fn new<P: AsRef<Path>>(config_path: YaveContextParams, vm_config_path: P) -> Self {
         Self {
             params: config_path,
@@ -94,22 +31,23 @@ impl VmContext {
         if Self::vm_is_running(&vm_config, &self.params).await? {
             return Err(Error::VMRunning(vm_config.name));
         }
-        let args = self.qemu_command()?;
-        let mut command = Command::new(&args[0]);
-        command.env(self.params.vm_name_env_variable.clone(), &vm_config.name);
-        command.args(&args[1..]);
-        command.status().await?;
-        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
-        qmp.invoke(InvokeCommand::set_vnc_password(&vm_config.vnc.password)).await?;
+        let config = self.yave_context().config()?;
+        let vm_runner = VmRunner::new(config, vm_config.clone());
+        vm_runner.run(&self.params).await?;
+
+        if let Some(vnc) = &vm_config.vnc {
+            let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
+            qmp.invoke(InvokeCommand::set_vnc_password(&vnc.password)).await?;
+        }
         Ok(())
     }
 
     pub async fn shutdown(&self) -> Result<(), Error> {
         let vm_config = self.vm_config()?;
         if !Self::vm_is_running(&vm_config, &self.params).await? {
-            return Err(Error::VMNotRunning(vm_config.name));
+            return Err(Error::VMNotRunning(vm_config.name.clone()));
         }
-        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
+        let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
         qmp.invoke(InvokeCommand::quit()).await?;
         Ok(())
     }
@@ -119,13 +57,7 @@ impl VmContext {
         if !Self::vm_is_running(&vm_config, &self.params).await? {
             return Err(Error::VMNotRunning(vm_config.name));
         }
-        let qmp = Self::create_qmp(&vm_config, &self.params).await?;
-        Ok(qmp)
-    }
-
-    async fn create_qmp(vm_config: &VirtualMachine, paths: &YaveContextParams) -> Result<qmp::client::Client, Error> {
-        let socket_path = paths.with_vm_sock(&vm_config.name);
-        let qmp = qmp::client::Client::connect(&socket_path).await?;
+        let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
         Ok(qmp)
     }
 

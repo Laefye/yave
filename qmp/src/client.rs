@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufStream}, net::{UnixSocket, UnixStream}, sync::{RwLock, mpsc, oneshot}};
+use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufStream}, net::{UnixSocket, UnixStream}, sync::{RwLock, broadcast, mpsc, oneshot}};
 
 use crate::{
     Error, Result,
@@ -14,6 +14,7 @@ struct StreamLoop {
     queue: RwLock<mpsc::Receiver<(InvokeCommand, oneshot::Sender<CommandResponse>)>>,
 
     active_command: RwLock<Option<oneshot::Sender<CommandResponse>>>,
+    close: RwLock<broadcast::Sender<()>>,
 }
 
 pub struct Client {
@@ -21,6 +22,8 @@ pub struct Client {
 
     drop: mpsc::Sender<()>,
     queue: mpsc::Sender<(InvokeCommand, oneshot::Sender<CommandResponse>)>,
+
+    on_close: broadcast::Receiver<()>,
 }
 
 impl Client {
@@ -30,12 +33,14 @@ impl Client {
     
         let (drop_tx, drop_rx) = mpsc::channel(1);
         let (queue_tx, queue_rx) = mpsc::channel(100);
+        let (close_tx, close_rx) = broadcast::channel(1);
 
         let qmp_loop = StreamLoop {
             buffer: RwLock::new(BufStream::new(stream)),
             drop: RwLock::new(drop_rx),
             queue: RwLock::new(queue_rx),
             active_command: RwLock::new(None),
+            close: RwLock::new(close_tx),
         };
 
         let error = Arc::new(RwLock::new(None));
@@ -52,6 +57,7 @@ impl Client {
             error: error,
             drop: drop_tx,
             queue: queue_tx,
+            on_close: close_rx,
         })
     }
 
@@ -63,6 +69,11 @@ impl Client {
         self.queue.send((command, response_tx)).await.map_err(|_| Error::ChannelClosed)?;
         let response = response_rx.await.map_err(|_| Error::ChannelClosed)?;
         Ok(response)
+    }
+
+    pub async fn on_close(&mut self) -> Result<()> {
+        self.on_close.recv().await.map_err(|_| Error::ChannelClosed)?;
+        Ok(())
     }
 }
 
@@ -162,8 +173,8 @@ impl StreamLoop {
                                 callback.send(response).map_err(|_| Error::ChannelClosed)?;
                             }
                         },
-                        Response::Event(_) => {
-                            // Ignore events for now
+                        Response::Event(event) => {
+                            println!("qmp: {:?}", event);
                         },
                     }
                 },
@@ -178,6 +189,7 @@ impl StreamLoop {
                 },
             }
         }
+        self.close.write().await.send(()).ok();
         Ok(())
     }
 }

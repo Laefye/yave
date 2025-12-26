@@ -87,7 +87,6 @@ async fn main() {
             let context = YaveContext::default();
             let vm = context.open_vm(&name).expect("Can't open vm");
             vm.run().await.expect("Error running VM");
-            
         },
         Commands::Shutdown { name } => {
             let context = YaveContext::default();

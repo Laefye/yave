@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::Path};
 use serde::{Deserialize, Serialize};
 
 pub mod utils;
+pub mod cloudinit;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -36,26 +37,26 @@ fn unresolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OVMF {
     pub code: String,
     pub vars: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct API {
     pub groups: Vec<String>,
     pub listen: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub cli: CLI,
     pub ovmf: OVMF,
     pub api: API,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CLI {
     pub bin: String,
     pub img: String,
@@ -90,7 +91,7 @@ pub struct VNC {
 pub struct VirtualMachine {
     pub name: String,
     pub hardware: Hardware,
-    pub vnc: VNC,
+    pub vnc: Option<VNC>,
     pub drives: HashMap<String, Drive>,
     pub networks: HashMap<String, NetworkInterface>,
 }

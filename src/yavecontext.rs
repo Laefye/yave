@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ffi::OsString, path::{Path, PathBuf}};
 
-use vm_types::{Config, Drive, DriveDevice, Hardware, IdeDevice, NetworkDevice, NetworkInterface, Preset, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine};
+use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, Preset, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine};
 
-use crate::{Error, tools::{GenIsoImage, QemuImg}, vmcontext::VmContext};
+use crate::{Error, presetinstaller::PresetInstaller, tools::QemuImg, vmcontext::VmContext};
 
 #[derive(Clone)]
 pub struct YaveContextParams {
@@ -93,38 +93,16 @@ impl YaveContext {
         }
     }
 
-    pub async fn create_iso_image(&self, vm_name: &str, config: &Config) -> Result<(), Error> {
-        let vm_path = self.params.with_vm(vm_name);
-        let iso_file = vm_path.join(&self.params.cloud_init_iso_name);
-       
-        let temp_dir = tempfile::tempdir()?;
-
-        let user_data = format!(
-            "#cloud-config\npassword: yavevm\nchpasswd: {{ expire: False }}\nssh_pwauth: True\n"
-        );
-        std::fs::write(temp_dir.path().join("user-data"), user_data)?;
-        std::fs::write(temp_dir.path().join("meta-data"), "")?;
-        std::fs::write(temp_dir.path().join("network-config"), "")?;
-
-        GenIsoImage::new(&config.cli.genisoimage)
-            .create(
-                temp_dir.path(),
-                &iso_file,
-                "cidata"
-            ).await?;
-        Ok(())
-    }
-
     pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<VmContext, Error> {
         let mut vnc_table = self.vnc_table()?;
 
         let mut vm = VirtualMachine {
             name: input.name.clone(),
             hardware: input.hardware,
-            vnc: VNC {
+            vnc: Some(VNC {
                 display: vnc_table.find_free_display(),
                 password: "12345678".to_string(),
-            },
+            }),
             drives: HashMap::new(),
             networks: HashMap::new(),
         };
@@ -134,8 +112,6 @@ impl YaveContext {
 
         std::fs::create_dir_all(&vm_path)?;
 
-        let mut boot_index = 1;
-
         for (i, drive_option) in input.drives.iter().enumerate() {
             match drive_option {
                 CreateDriveOptions::Empty { size } => {
@@ -144,10 +120,9 @@ impl YaveContext {
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
                         device: DriveDevice::VirtioBlk(VirtioBlkDevice {
-                            boot_index: Some(boot_index),
+                            boot_index: Some( i as u32),
                         })
                     });
-                    boot_index += 1;
                     QemuImg::new(self.config()?.cli.img)
                         .create(*size, &hd_file).await?;
                 },
@@ -158,10 +133,9 @@ impl YaveContext {
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
                         device: DriveDevice::VirtioBlk(VirtioBlkDevice {
-                            boot_index: Some(boot_index),
+                            boot_index: Some(i as u32),
                         })
                     });
-                    boot_index += 1;
                 },
                 CreateDriveOptions::FromPreset { size, preset } => {
                     let hd_id = format!("hd{}", i);
@@ -171,25 +145,15 @@ impl YaveContext {
                     )?;
                     let config = self.config()?;
                     QemuImg::new(self.config()?.cli.img)
-                        .convert(*size, &preset.cloudimg, &hd_file).await?;
-                    self.create_iso_image(&input.name, &config).await?;
+                        .convert(&preset.cloudimg, &hd_file).await?;
+                    let preset_installer = PresetInstaller::new(vm.clone(), &hd_file);
+                    preset_installer.install(&config, &self.params).await?;
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
                         device: DriveDevice::VirtioBlk(VirtioBlkDevice {
-                            boot_index: Some(boot_index),
+                            boot_index: Some(i as u32),
                         })
                     });
-                    boot_index += 1;
-                    vm.drives.insert(
-                        "cloudinit".to_string(),
-                        Drive {
-                            path: vm_path.join(&self.params.cloud_init_iso_name).to_string_lossy().to_string(),
-                            device: DriveDevice::Ide(IdeDevice {
-                                media_type: vm_types::MediaType::Cdrom,
-                                boot_index: None,
-                            })
-                        },
-                    );
                 },
             }
         }
@@ -203,9 +167,10 @@ impl YaveContext {
             } 
         ));
         
-        
         vm.save(&vm_config)?;
-        vnc_table.table.insert(vm.vnc.display.clone(), input.name.clone());
+        if let Some(vnc) = &vm.vnc {
+            vnc_table.table.insert(vnc.display.clone(), input.name.clone());
+        }
         self.update_vnc_table(&vnc_table)?;
 
         Ok(VmContext::new(

@@ -5,6 +5,8 @@ mod tools;
 pub mod interface;
 pub mod yavecontext;
 pub mod vmcontext;
+mod presetinstaller;
+mod vmrunner;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
