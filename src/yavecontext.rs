@@ -131,12 +131,9 @@ impl YaveContext {
         let mut vm = VirtualMachine {
             name: input.name.clone(),
             hardware: input.hardware,
-            vnc: match &input.passwords {
-                Some(passwords) => Some(VNC {
-                    display: vnc_table.find_free_display(),
-                    password: passwords.vnc.clone(),
-                }),
-                None => None,
+            vnc: VNC {
+                display: vnc_table.find_free_display(),
+                password: input.passwords.as_ref().map_or("12345678".to_string(), |p| p.vnc.clone()),
             },
             drives: HashMap::new(),
             networks: HashMap::new(),
@@ -144,8 +141,11 @@ impl YaveContext {
 
         let vm_path = self.params.with_vm(&input.name);
         let vm_config = vm_path.join(&self.params.vm_config_name);
+        let config = self.config()?;
 
         std::fs::create_dir_all(&vm_path)?;
+
+        let mut presets_to_install = Vec::new();
 
         for (i, drive_option) in input.drives.iter().enumerate() {
             match drive_option {
@@ -178,7 +178,6 @@ impl YaveContext {
                     let preset = Preset::load(
                         &self.params.storage_path.join(preset).with_added_extension(&self.params.preset_ext).join("config.yaml")
                     )?;
-                    let config = self.config()?;
                     QemuImg::new(self.config()?.cli.img)
                         .convert(&preset.cloudimg, &hd_file).await?;
                     QemuImg::new(self.config()?.cli.img)
@@ -187,8 +186,7 @@ impl YaveContext {
                         input.passwords.as_ref().unwrap(),
                         &input.hostname.as_ref().unwrap_or(&input.name),
                     ).await?;
-                    let preset_installer = PresetInstaller::new(vm.clone(), &hd_file, cloud_init_config);
-                    preset_installer.install(&config, &self.params).await?;
+                    presets_to_install.push((hd_file.clone(), cloud_init_config));
                     vm.drives.insert(hd_id, Drive {
                         path: hd_file.to_string_lossy().to_string(),
                         device: DriveDevice::VirtioBlk(VirtioBlkDevice {
@@ -209,10 +207,13 @@ impl YaveContext {
         ));
         
         vm.save(&vm_config)?;
-        if let Some(vnc) = &vm.vnc {
-            vnc_table.table.insert(vnc.display.clone(), input.name.clone());
-        }
+        vnc_table.table.insert(vm.vnc.display.clone(), input.name.clone());
         self.update_vnc_table(&vnc_table)?;
+
+        for (hd_file, cloud_init_config) in presets_to_install {
+            let preset_installer = PresetInstaller::new(vm.clone(), &hd_file, cloud_init_config);
+            preset_installer.install(&config, &self.params).await?;
+        }
 
         Ok(VmContext::new(
             self.params.clone(),

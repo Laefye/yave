@@ -40,7 +40,6 @@ impl PresetInstaller {
                 }),
                 path: cloudimg.to_string_lossy().to_string(),
             });
-        vm.vnc = None;
         vm
     }
 

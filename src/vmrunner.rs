@@ -44,11 +44,7 @@ impl VmRunner {
     }
 
     fn add_vnc(qemu: KVM, vm: &VirtualMachine) -> KVM {
-        if let Some(vnc) = &vm.vnc {
-            qemu.vnc(&vnc.display, true)
-        } else {
-            qemu
-        }
+        qemu.vnc(&vm.vnc.display, true)
     }
     
     fn add_networks(mut qemu: KVM, vm: &VirtualMachine, paths: &YaveContextParams) -> KVM {

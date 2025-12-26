@@ -91,7 +91,7 @@ pub struct VNC {
 pub struct VirtualMachine {
     pub name: String,
     pub hardware: Hardware,
-    pub vnc: Option<VNC>,
+    pub vnc: VNC,
     pub drives: HashMap<String, Drive>,
     pub networks: HashMap<String, NetworkInterface>,
 }

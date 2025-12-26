@@ -35,10 +35,9 @@ impl VmContext {
         let vm_runner = VmRunner::new(config, vm_config.clone());
         vm_runner.run(&self.params).await?;
 
-        if let Some(vnc) = &vm_config.vnc {
-            let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
-            qmp.invoke(InvokeCommand::set_vnc_password(&vnc.password)).await?;
-        }
+        let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
+        qmp.invoke(InvokeCommand::set_vnc_password(&vm_config.vnc.password)).await?;
+        
         Ok(())
     }
 
