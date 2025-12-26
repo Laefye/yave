@@ -85,4 +85,10 @@ impl Img {
             .arg(src)
             .arg(dest)
     }
+
+    pub fn resize(self, path: &str, size: u32) -> Self {
+        self.arg("resize")
+            .arg(path)
+            .arg(&format!("{}M", size))
+    }
 }

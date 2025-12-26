@@ -106,6 +106,7 @@ impl StreamLoop {
                 if line.is_empty() {
                     Ok(None)
                 } else {
+                    println!("qmp read: {}", line.trim_end());
                     Ok(Some(serde_json::from_str(&line)?))
                 }
             }

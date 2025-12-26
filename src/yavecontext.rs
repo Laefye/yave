@@ -146,6 +146,8 @@ impl YaveContext {
                     let config = self.config()?;
                     QemuImg::new(self.config()?.cli.img)
                         .convert(&preset.cloudimg, &hd_file).await?;
+                    QemuImg::new(self.config()?.cli.img)
+                        .resize(*size, &hd_file).await?;
                     let preset_installer = PresetInstaller::new(vm.clone(), &hd_file);
                     preset_installer.install(&config, &self.params).await?;
                     vm.drives.insert(hd_id, Drive {

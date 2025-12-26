@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use qmp::types::InvokeCommand;
 use yave::yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, YaveContext};
 
 
@@ -67,7 +66,7 @@ async fn main() {
                     .memory(memory)
             ).await.expect("Error with creation");
         },
-        Commands::Create { name, vcpu, memory, capacity, image, preset: Some(preset) } => {
+        Commands::Create { name, vcpu, memory, capacity, image: _, preset: Some(preset) } => {
             let context = YaveContext::default();
             context.create_vm(
                 CreateVirtualMachineInput::new(&name)
