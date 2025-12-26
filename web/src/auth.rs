@@ -2,9 +2,8 @@ use std::ffi::{OsStr, OsString};
 
 use axum_auth::AuthBasic;
 use nonstick::{AuthnFlags, ConversationAdapter, Transaction, TransactionBuilder};
+use vm_types::Config;
 use yave::yavecontext::YaveContext;
-
-use crate::Error;
 
 struct UsernamePassConvo {
     username: String,
@@ -30,7 +29,13 @@ impl ConversationAdapter for UsernamePassConvo {
     }
 }
 
-pub fn check(AuthBasic((username, password)): &AuthBasic, context: &YaveContext) -> Result<(), Error> {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Invalid creditinals")]
+    InvalidCreditinals,
+}
+
+pub fn check(AuthBasic((username, password)): &AuthBasic, config: &Config) -> Result<(), Error> {
     let mut txn = TransactionBuilder::new_with_service("common_auth")
         .username(username)
         .build(UsernamePassConvo {
@@ -39,8 +44,6 @@ pub fn check(AuthBasic((username, password)): &AuthBasic, context: &YaveContext)
         }.into_conversation()).map_err(|_| Error::InvalidCreditinals)?;
     txn.authenticate(AuthnFlags::empty()).map_err(|_| Error::InvalidCreditinals)?;
     txn.account_management(AuthnFlags::empty()).map_err(|_| Error::InvalidCreditinals)?;
-
-    let config = context.config()?;
 
     let user = users::get_user_by_name(username).expect("Impossible error, if pam work");
     if let Some(groups) = user.groups() {
