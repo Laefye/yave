@@ -84,7 +84,6 @@ impl<'a> VmRunner<'a> {
     pub async fn run(&self) -> Result<(), Error> {
         let args = self.get_qemu_command()?;
         let mut command = tokio::process::Command::new(&args[0]);
-        command.env("YAVE_VM_NAME".to_string(), &self.context.vm_config()?.name);
         command.args(&args[1..]);
         command.status().await?;
         Ok(())
