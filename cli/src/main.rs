@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use qmp::types::{InvokeCommand, QMP};
+use qmp::types::InvokeCommand;
 use vm_types::cloudinit::{Chpasswd, CloudConfig};
 use yave::{contexts::{self, vm::DriveOptions}, newvmrunner::VmRunner, yavecontext::YaveContext};
 

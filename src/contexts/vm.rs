@@ -141,7 +141,6 @@ impl VirtualMachineFactory {
             drives: HashMap::new(),
             vnc: vm_types::VNC {
                 display: vnc_table.allocate(&self.name),
-                password: "changeme".to_string(),
             },
         };
         vnc_table.table.insert(vm.vnc.display.clone(), vm.name.clone());

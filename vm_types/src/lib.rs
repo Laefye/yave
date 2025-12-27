@@ -84,8 +84,6 @@ pub struct Hardware {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VNC {
     pub display: String,
-    #[deprecated()]
-    pub password: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

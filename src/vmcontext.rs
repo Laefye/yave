@@ -27,18 +27,7 @@ impl OldVmContext {
     }
 
     pub async fn run(&self) -> Result<(), Error> {
-        let vm_config = self.vm_config()?;
-        if Self::vm_is_running(&vm_config, &self.params).await? {
-            return Err(Error::VMRunning(vm_config.name));
-        }
-        let config = self.yave_context().config()?;
-        let vm_runner = VmRunner::new(config, vm_config.clone());
-        vm_runner.run(&self.params).await?;
-
-        let qmp = VmRunner::create_qmp(&vm_config, &self.params).await?;
-        qmp.invoke(InvokeCommand::set_vnc_password(&vm_config.vnc.password)).await?;
-        
-        Ok(())
+        unimplemented!()
     }
 
     pub async fn shutdown(&self) -> Result<(), Error> {
