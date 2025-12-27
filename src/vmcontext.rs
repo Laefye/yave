@@ -5,12 +5,12 @@ use vm_types::VirtualMachine;
 
 use crate::{Error, vmrunner::VmRunner, yavecontext::{YaveContext, YaveContextParams}};
 
-pub struct VmContext {
+pub struct OldVmContext {
     params: YaveContextParams,
     vm_config_path: PathBuf,
 }
 
-impl VmContext {
+impl OldVmContext {
     pub fn new<P: AsRef<Path>>(config_path: YaveContextParams, vm_config_path: P) -> Self {
         Self {
             params: config_path,

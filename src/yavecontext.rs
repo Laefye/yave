@@ -2,7 +2,7 @@ use std::{collections::HashMap, ffi::OsString, path::{Path, PathBuf}};
 
 use vm_types::{Config, Drive, DriveDevice, Hardware, NetworkDevice, NetworkInterface, Preset, TapInterface, VNC, VNCTable, VirtioBlkDevice, VirtualMachine, cloudinit::{Chpasswd, CloudConfig, PowerState}};
 
-use crate::{Error, presetinstaller::PresetInstaller, tools::QemuImg, vmcontext::VmContext};
+use crate::{Error, presetinstaller::PresetInstaller, tools::QemuImg, vmcontext::OldVmContext};
 
 #[derive(Clone)]
 pub struct YaveContextParams {
@@ -125,7 +125,7 @@ impl YaveContext {
         Ok(cloud_config)
     }
 
-    pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<VmContext, Error> {
+    pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<OldVmContext, Error> {
         let mut vnc_table = self.vnc_table()?;
 
         let mut vm = VirtualMachine {
@@ -215,7 +215,7 @@ impl YaveContext {
             preset_installer.install(&config, &self.params).await?;
         }
 
-        Ok(VmContext::new(
+        Ok(OldVmContext::new(
             self.params.clone(),
             &vm_config
         ))
@@ -225,12 +225,12 @@ impl YaveContext {
         Ok(Config::load(&self.params.config_path)?)
     }
 
-    pub fn open_vm(&self, name: &str) -> Result<VmContext, Error> {
+    pub fn open_vm(&self, name: &str) -> Result<OldVmContext, Error> {
         let vm_config_path = self.params.with_vm(name).join(&self.params.vm_config_name);
         if !std::fs::exists(&self.params.with_vm(name))? {
             Err(Error::VMNotFound(name.into()))
         } else {
-            Ok(VmContext::new(
+            Ok(OldVmContext::new(
                 self.params.clone(),
                 &vm_config_path
             ))
