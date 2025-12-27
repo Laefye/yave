@@ -92,7 +92,7 @@ pub struct VirtualMachine {
     pub hardware: Hardware,
     pub vnc: VNC,
     pub drives: HashMap<String, Drive>,
-    pub networks: HashMap<String, NetworkInterface>,
+    pub networks: HashMap<String, TapInterface>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -160,21 +160,7 @@ pub struct NetworkDevice {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TapInterface {
     pub device: NetworkDevice,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(tag = "type")]
-pub enum NetworkInterface {
-    #[serde(rename = "tap")]
-    Tap(TapInterface),
-}
-
-impl<'a> NetworkInterface {
-    pub fn get_network_device(&'a self) -> &'a NetworkDevice {
-        match self {
-            NetworkInterface::Tap(tap_interface) => &tap_interface.device,
-        }
-    }
+    pub ifname: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -219,6 +205,55 @@ impl VNCTable {
             if !self.table.contains_key(&display_str) {
                 self.table.insert(display_str.clone(), name.to_string());
                 return display_str;
+            }
+            display += 1;
+        }
+    }
+}
+
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TapTable {
+    pub table: HashMap<String, String>,
+}
+
+impl Default for TapTable {
+    fn default() -> Self {
+        Self {
+            table: HashMap::new(),
+        }
+    }
+}
+
+impl TapTable {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let tap_str = serde_yaml::to_string(&self).unwrap();
+        std::fs::write(path, tap_str)?;
+        Ok(())
+    }
+
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let tap_str = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(TapTable::default());
+            }
+            Err(e) => return Err(Error::IO(e)),
+        };
+        let tap_table = serde_yaml::from_str::<TapTable>(&tap_str)?;
+        Ok(tap_table)
+    }
+
+    pub fn allocate(&mut self, name: &str) -> String {
+        if self.table.values().any(|n| n == &name) {
+            return self.table.iter().find(|(_, v)| *v == &name).unwrap().0.clone();
+        }
+        let mut display = 1;
+        loop {
+            let tap_ifname = format!("yave{}", display);
+            if !self.table.contains_key(&tap_ifname) {
+                self.table.insert(tap_ifname.clone(), name.to_string());
+                return tap_ifname;
             }
             display += 1;
         }

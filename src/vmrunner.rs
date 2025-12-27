@@ -1,5 +1,5 @@
 use qemu::KVM;
-use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
+use vm_types::{Config, DriveDevice, VirtualMachine};
 
 use crate::{Error, contexts::{vm::VirtualMachineContext, yave::NetdevScripts}};
 
@@ -56,12 +56,8 @@ impl<'a> VmRunner<'a> {
     
     fn add_networks(mut qemu: KVM, vm: &VirtualMachine, netdev_scripts: &NetdevScripts) -> KVM {
         for (id, net) in &vm.networks {
-            match net {
-                NetworkInterface::Tap(tap) => {
-                    qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down));
-                    qemu = qemu.network_device(id, &tap.device.mac);
-                },
-            }
+            qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down));
+            qemu = qemu.network_device(id, &net.device.mac);
         }
         qemu
     }

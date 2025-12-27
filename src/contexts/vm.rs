@@ -94,12 +94,17 @@ pub enum DriveOptions {
     },
 }
 
+pub struct NetworkOptions {
+
+}
+
 pub struct VirtualMachineFactory {
     yave_context: YaveContext,
     name: String,
     vcpu: u32,
     memory: u32,
     drives: Vec<DriveOptions>,
+    networks: Vec<NetworkOptions>,
 }
 
 impl VirtualMachineFactory {
@@ -110,6 +115,7 @@ impl VirtualMachineFactory {
             vcpu: 1,
             memory: 1024,
             drives: Vec::new(),
+            networks: Vec::new(),
         }
     }
     pub fn vcpu(mut self, vcpu: u32) -> Self {
@@ -125,9 +131,16 @@ impl VirtualMachineFactory {
         self
     }
 
+    pub fn network(mut self, network: NetworkOptions) -> Self {
+        self.networks.push(network);
+        self
+    }
+
     pub async fn create(&self) -> Result<VirtualMachineContext, crate::Error> {
         let vnc_table_path = self.yave_context.vnc_table();
         let mut vnc_table = VNCTable::load(&vnc_table_path)?;
+        let tap_table_path = self.yave_context.tap_table();
+        let mut tap_table = vm_types::TapTable::load(&tap_table_path)?;
         let vm_dir = self.yave_context.vm_dir(&self.name);
         std::fs::create_dir_all(&vm_dir)?;
         let mut vm = vm_types::VirtualMachine {
@@ -169,6 +182,19 @@ impl VirtualMachineFactory {
                 path: drive_path.to_string_lossy().to_string(),
             });
         }
+
+        for (i, _net) in self.networks.iter().enumerate() {
+            let tap_ifname = tap_table.allocate(&self.name);
+            let net_id = format!("net{}", i);
+            vm.networks.insert(net_id, vm_types::TapInterface {
+                device: vm_types::NetworkDevice {
+                    mac: vm_types::utils::get_mac(&tap_ifname),
+                    master: None,
+                },
+                ifname: tap_ifname,
+            });
+        }
+        tap_table.save(&tap_table_path)?;
 
         let vm_config_path = vm_dir.join("config.yaml");
         vm.save(&vm_config_path)?;

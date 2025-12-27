@@ -59,6 +59,10 @@ impl YaveContext {
         self.storage_path.join("vnc.table.yaml")
     }
 
+    pub fn tap_table(&self) -> PathBuf {
+        self.storage_path.join("tap.table.yaml")
+    }
+
     pub fn vm(&self, name: impl ToString) -> VirtualMachineContext {
         VirtualMachineContext::new(self.clone(), self.vm_dir(name).join("config.yaml"))
     }

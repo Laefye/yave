@@ -73,6 +73,9 @@ async fn main() {
                     None => DriveOptions::Empty {
                         size: capacity,
                     },
+                })
+                .network(contexts::vm::NetworkOptions {
+                    
                 });
             let vm_context = vm_factory.create().await.expect("Error creating VM");
             println!("Created VM at {:?}", vm_context);
