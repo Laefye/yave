@@ -1,5 +1,5 @@
 use axum::Router;
-use yave::yavecontext::YaveContext;
+use yave::contexts::yave::YaveContext;
 
 mod auth;
 mod v1;

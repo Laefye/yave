@@ -1,12 +1,13 @@
-use std::{cell::RefCell, path::{Path, PathBuf}};
+use std::{path::{Path, PathBuf}, sync::Arc};
 
+use tokio::sync::RwLock;
 use vm_types::Config;
 
 use crate::contexts::vm::VirtualMachineContext;
 
 #[derive(Debug, Clone)]
 pub struct YaveContext {
-    config: RefCell<Option<Config>>,
+    config: Arc<RwLock<Option<Config>>>,
     config_path: PathBuf,
     storage_path: PathBuf,
     run_path: PathBuf,
@@ -23,7 +24,7 @@ impl YaveContext {
     pub fn new(config_path: impl AsRef<Path>, storage_path: impl AsRef<Path>, run_path: impl AsRef<Path>, netdev_scripts: &NetdevScripts) -> Self
     {
         Self {
-            config: RefCell::new(None),
+            config: Arc::new(RwLock::new(None)),
             config_path: config_path.as_ref().to_path_buf(),
             storage_path: storage_path.as_ref().to_path_buf(),
             run_path: run_path.as_ref().to_path_buf(),
@@ -44,11 +45,12 @@ impl YaveContext {
     }
 
     pub fn config(&self) -> Result<Config, crate::Error> {
-        if self.config.borrow().is_none() {
+        let mut config_lock = self.config.blocking_write();
+        if config_lock.is_none() {
             let config = Config::load(&self.config_path)?;
-            *self.config.borrow_mut() = Some(config);
+            *config_lock = Some(config);
         }
-        Ok(self.config.borrow().as_ref().unwrap().clone())
+        Ok(config_lock.as_ref().unwrap().clone())
     }
 
     pub(super) fn vm_dir(&self, name: impl ToString) -> PathBuf {

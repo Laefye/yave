@@ -1,6 +1,8 @@
 use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{delete, get, post}};
 use axum_auth::AuthBasic;
+use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
+use yave::vmrunner::VmRunner;
 
 use crate::{AppState, auth};
 
@@ -11,7 +13,7 @@ pub fn router() -> Router<AppState> {
         .route("/vms/{vm}/run", post(run_vm))
         .route("/vms/{vm}/run", delete(shutdown_vm))
         .route("/vms/{vm}/run", get(get_run_vm))
-}
+}   
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -60,21 +62,22 @@ impl IntoResponse for Error {
 async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config()?)?;
 
-    Ok(Json::from(state.context.list()?))
+    Ok("[]".to_string())
 }
 
 async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config()?)?;
 
-    let vm = state.context.open_vm(&vm)?;
+    let vm = state.context.vm(&vm);
     Ok(Json::from(vm.vm_config()?))
 }
 
 async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config()?)?;
 
-    let vm = state.context.open_vm(&vm)?;
-    vm.run().await?;
+    let vm = state.context.vm(&vm);
+    let runner = VmRunner::new(&vm);
+    runner.run().await?;
     Ok(Json::from(()))
 }
 
@@ -83,10 +86,10 @@ pub struct RunStatus {
     is_running: bool,
 }
 
-async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
+async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<Json<RunStatus>, Error> {
     auth::check(&auth, &state.context.config()?)?;
 
-    let vm = state.context.open_vm(&vm)?;
+    let vm = state.context.vm(&vm);
     Ok(Json::from(RunStatus {
         is_running: vm.is_running().await?,
     }))
@@ -95,7 +98,12 @@ async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
 async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config()?)?;
 
-    let vm = state.context.open_vm(&vm)?;
-    vm.shutdown().await?;
+    let vm = state.context.vm(&vm);
+    vm
+        .connect_qmp()
+        .await?
+        .invoke(InvokeCommand::quit())
+        .await
+        .map_err(yave::Error::from)?;
     Ok(Json::from(()))
 }

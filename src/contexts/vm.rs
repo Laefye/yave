@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, path::{Path, PathBuf}};
+use std::{collections::HashMap, path::{Path, PathBuf}, sync::{Arc, Mutex}};
 
 use vm_types::{VNCTable, VirtioBlkDevice};
 
@@ -10,7 +10,7 @@ use super::yave::YaveContext;
 pub struct VirtualMachineContext {
     yave_context: YaveContext,
     vm_config_path: PathBuf,
-    vm_config: RefCell<Option<vm_types::VirtualMachine>>,
+    vm_config: Arc<Mutex<Option<vm_types::VirtualMachine>>>,
 }
 
 impl VirtualMachineContext {
@@ -18,7 +18,7 @@ impl VirtualMachineContext {
         Self {
             yave_context,
             vm_config_path: vm_config_path.as_ref().to_path_buf(),
-            vm_config: RefCell::new(None),
+            vm_config: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -31,11 +31,17 @@ impl VirtualMachineContext {
     }
 
     pub fn vm_config(&self) -> Result<vm_types::VirtualMachine, crate::Error> {
-        if self.vm_config.borrow().is_none() {
-            let vm = vm_types::VirtualMachine::load(&self.vm_config_path)?;
-            *self.vm_config.borrow_mut() = Some(vm);
+        {
+            let cache = self.vm_config.lock().expect("vm config lock poisoned");
+            if let Some(vm) = cache.as_ref() {
+                return Ok(vm.clone());
+            }
         }
-        Ok(self.vm_config.borrow().as_ref().unwrap().clone())
+
+        let vm = vm_types::VirtualMachine::load(&self.vm_config_path)?;
+        let mut cache = self.vm_config.lock().expect("vm config lock poisoned");
+        *cache = Some(vm.clone());
+        Ok(vm)
     }
 
     pub fn pid_file(&self) -> PathBuf {
@@ -68,7 +74,7 @@ impl VirtualMachineContext {
         Ok(qmp)
     }
 
-    async fn is_running(&self) -> Result<bool, Error> {
+    pub async fn is_running(&self) -> Result<bool, Error> {
         let pid_path = self.pid_file();
         let pid_str = match std::fs::read_to_string(pid_path) {
             Ok(s) => s,
