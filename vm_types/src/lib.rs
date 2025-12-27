@@ -84,6 +84,7 @@ pub struct Hardware {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VNC {
     pub display: String,
+    #[deprecated()]
     pub password: String,
 }
 
@@ -210,11 +211,15 @@ impl VNCTable {
         Ok(vnc_table)
     }
 
-    pub fn find_free_display(&self) -> String {
+    pub fn allocate(&mut self, name: &str) -> String {
+        if self.table.values().any(|n| n == &name) {
+            return self.table.iter().find(|(_, v)| *v == &name).unwrap().0.clone();
+        }
         let mut display = 1;
         loop {
             let display_str = format!(":{}", display);
             if !self.table.contains_key(&display_str) {
+                self.table.insert(display_str.clone(), name.to_string());
                 return display_str;
             }
             display += 1;

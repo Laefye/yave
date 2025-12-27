@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
-use yave::yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, Passwords, YaveContext};
+use qmp::types::{InvokeCommand, QMP};
+use yave::{contexts::{self, vm::DriveOptions}, newvmrunner::VmRunner, yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, Passwords, YaveContext}};
 
 
 #[derive(Parser, Debug)]
@@ -28,19 +29,13 @@ enum Commands {
         capacity: u32,
         #[arg(short, long)]
         image: Option<String>,
-        #[arg(short, long)]
-        preset: Option<String>,
-        #[arg(short='H', long)]
-        hostname: Option<String>,
-        #[arg(short, long, default_value = "")]
-        root_password: Option<String>,
-        #[arg(short='V', long, default_value = "12345678")]
-        vnc_password: Option<String>,
     },
     List,
     Run {
         #[arg(short, long)]
         name: String,
+        #[arg(short, long)]
+        vnc: Option<String>,
     },
     Shutdown {
         #[arg(short, long)]
@@ -60,36 +55,22 @@ enum Commands {
 async fn main() {
     let args = Args::parse();
     match args.cmd {
-        Commands::Create { name, vcpu, memory, capacity, image, preset: None, hostname, root_password, vnc_password } => {
-            let context = YaveContext::default();
-            context.create_vm(
-                CreateVirtualMachineInput::new(&name)
-                    .hostname(hostname.as_deref().unwrap_or(&name))
-                    .passwords(Passwords {
-                        root: root_password.unwrap_or_default(),
-                        vnc: vnc_password.unwrap_or_default(),
-                    })
-                    .drive(match image {
-                        Some(img) => CreateDriveOptions::FromStorage { image: img },
-                        None => CreateDriveOptions::Empty { size: capacity },
-                    })
-                    .vcpu(vcpu)
-                    .memory(memory)
-            ).await.expect("Error with creation");
-        },
-        Commands::Create { name, vcpu, memory, capacity, image: _, preset: Some(preset), hostname, root_password, vnc_password } => {
-            let context = YaveContext::default();
-            context.create_vm(
-                CreateVirtualMachineInput::new(&name)
-                    .hostname(hostname.as_deref().unwrap_or(&name))
-                    .passwords(Passwords {
-                        root: root_password.unwrap_or_default(),
-                        vnc: vnc_password.unwrap_or_default(),
-                    })
-                    .drive(CreateDriveOptions::FromPreset { size: capacity, preset })
-                    .vcpu(vcpu)
-                    .memory(memory)
-            ).await.expect("Error with creation from preset");
+        Commands::Create { name, vcpu, memory, capacity, image } => {
+            let context = contexts::yave::YaveContext::default();
+            let vm_factory = contexts::vm::VirtualMachineFactory::new(&context, name)
+                .vcpu(vcpu)
+                .memory(memory)
+                .drive(match image {
+                    Some(image_path) => DriveOptions::From {
+                        size: Some(capacity),
+                        image: image_path,
+                    },
+                    None => DriveOptions::Empty {
+                        size: capacity,
+                    },
+                });
+            let vm_context = vm_factory.create().await.expect("Error creating VM");
+            println!("Created VM at {:?}", vm_context);
         },
         Commands::List => {
             let context = YaveContext::default();
@@ -98,15 +79,19 @@ async fn main() {
                 println!("{}", vm);
             }
         },
-        Commands::Run { name } => {
-            let context = YaveContext::default();
-            let vm = context.open_vm(&name).expect("Can't open vm");
-            vm.run().await.expect("Error running VM");
+        Commands::Run { name, vnc } => {
+            let context = contexts::yave::YaveContext::default();
+            let vm = context.vm(name);
+            let runner = VmRunner::new(&vm);
+            runner.run().await.expect("Error running VM");
+            let qmp = qmp::client::Client::connect(&vm.qmp_socket()).await.expect("Error connecting to QMP");
+            qmp.invoke(InvokeCommand::set_vnc_password(&vnc.unwrap_or("changeme".to_string()))).await.expect("Error setting VNC password");
         },
         Commands::Shutdown { name } => {
-            let context = YaveContext::default();
-            let vm = context.open_vm(&name).expect("Can't open vm");
-            vm.shutdown().await.expect("Error shutting down VM");
+            let context = contexts::yave::YaveContext::default();
+            let vm = context.vm(name);
+            let qmp = vm.connect_qmp().await.expect("Error connecting to QMP");
+            qmp.invoke(InvokeCommand::quit()).await.expect("Error shutting down VM");
         },
         Commands::Netdev { name, ifname, command } => {
             match command {

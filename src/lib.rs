@@ -8,6 +8,7 @@ pub mod vmcontext;
 mod presetinstaller;
 mod vmrunner;
 pub mod contexts;
+pub mod newvmrunner;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -45,5 +46,19 @@ impl Default for YaveContext {
             preset_ext: "preset".into(),
             cloud_init_iso_name: "cloudinit.iso".into(),
         })
+    }
+}
+
+impl Default for contexts::yave::YaveContext {
+    fn default() -> Self {
+        Self::new(
+            get_config_path(),
+            get_vm_config_path(),
+            get_run_path(),
+            &contexts::yave::NetdevScripts {
+                up: get_net_script(true),
+                down: get_net_script(false),
+            },
+        )
     }
 }

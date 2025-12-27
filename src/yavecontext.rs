@@ -128,11 +128,12 @@ impl YaveContext {
     pub async fn create_vm(&self, input: CreateVirtualMachineInput) -> Result<OldVmContext, Error> {
         let mut vnc_table = self.vnc_table()?;
 
+        todo!();
         let mut vm = VirtualMachine {
             name: input.name.clone(),
             hardware: input.hardware,
             vnc: VNC {
-                display: vnc_table.find_free_display(),
+                display: vnc_table.allocate(&input.name),
                 password: input.passwords.as_ref().map_or("12345678".to_string(), |p| p.vnc.clone()),
             },
             drives: HashMap::new(),

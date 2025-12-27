@@ -22,7 +22,7 @@ impl QemuImg {
             panic!("Need absolute path")
         }
         Img::new(&self.img_tool)
-            .create(qemu::base::ImgFormat::Qcow2, &path.as_ref().to_string_lossy().to_string(), size)
+            .create(qemu::base::ImgFormat::Raw, &path.as_ref().to_string_lossy().to_string(), size)
             .build()
     }
 
@@ -31,7 +31,7 @@ impl QemuImg {
             panic!("Need absolute path")
         }
         Img::new(&self.img_tool)
-            .convert(qemu::base::ImgFormat::Qcow2, &path.as_ref().to_string_lossy().to_string(), &dest.as_ref().to_string_lossy().to_string())
+            .convert(qemu::base::ImgFormat::Raw, &path.as_ref().to_string_lossy().to_string(), &dest.as_ref().to_string_lossy().to_string())
             .build()
     }
 

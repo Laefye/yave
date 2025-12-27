@@ -63,6 +63,7 @@ impl KVM {
 
 pub enum ImgFormat {
     Qcow2,
+    Raw,
 }
 
 impl Img {
@@ -71,6 +72,7 @@ impl Img {
             .arg("-f")
             .arg(match format {
                 ImgFormat::Qcow2 => "qcow2",
+                ImgFormat::Raw => "raw",
             })
             .arg(path)
             .arg(&format!("{}M", size))
@@ -81,6 +83,7 @@ impl Img {
             .arg("-O")
             .arg(match format {
                 ImgFormat::Qcow2 => "qcow2",
+                ImgFormat::Raw => "raw",
             })
             .arg(src)
             .arg(dest)

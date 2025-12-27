@@ -5,8 +5,8 @@
 *.sock
 *.qcow2
 *.iso
+*.img
 
 # Ignore vminstances
 *.vm
-*.preset
-vnc_table.yaml
+vnc.table.yaml
