@@ -31,8 +31,3 @@ pub fn get_vm_config_path() -> PathBuf {
         .unwrap_or(PathBuf::from("."))
         .join("debug")
 }
-
-pub fn get_vminstance_extension() -> String {
-    "vm".to_string()
-}
-

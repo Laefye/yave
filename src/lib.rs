@@ -1,14 +1,11 @@
-use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path, get_vminstance_extension}, yavecontext::{YaveContext, YaveContextParams}};
+use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path}};
 
 mod constants;
 mod tools;
 pub mod interface;
-pub mod yavecontext;
-pub mod vmcontext;
 pub mod installer;
-mod vmrunner;
 pub mod contexts;
-pub mod newvmrunner;
+pub mod vmrunner;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -29,24 +26,6 @@ pub enum Error {
     VMRunning(String),
     #[error("VM {0} not found")]
     VMNotFound(String)
-}
-
-impl Default for YaveContext {
-    fn default() -> Self {
-        Self::new(YaveContextParams {
-            config_path: get_config_path(),
-            storage_path: get_vm_config_path(),
-            run_path: get_run_path(),
-            vm_ext: get_vminstance_extension().into(),
-            hd_ext: "qcow2".into(), // TODO: Make hd_format instead of hd_ext
-            net_script_up: get_net_script(true),
-            net_script_down: get_net_script(false),
-            vm_config_name: "config.yaml".into(),
-            vm_name_env_variable: "YAVE_VM_NAME".into(),
-            preset_ext: "preset".into(),
-            cloud_init_iso_name: "cloudinit.iso".into(),
-        })
-    }
 }
 
 impl Default for contexts::yave::YaveContext {

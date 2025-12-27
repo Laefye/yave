@@ -4,7 +4,7 @@ use qmp::types::InvokeCommand;
 use tempfile::tempdir;
 use vm_types::{Drive, DriveDevice, IdeDevice, cloudinit::CloudConfig};
 
-use crate::{Error, contexts::vm::VirtualMachineContext, newvmrunner, tools::GenIsoImage};
+use crate::{Error, contexts::vm::VirtualMachineContext, vmrunner, tools::GenIsoImage};
 
 pub struct Installer {
     vm: VirtualMachineContext,
@@ -54,7 +54,7 @@ impl Installer {
             },
         );
         
-        let vmrunner = newvmrunner::VmRunner::new(&self.vm).with_vm(vm);
+        let vmrunner = vmrunner::VmRunner::new(&self.vm).with_vm(vm);
         vmrunner.run().await?;
 
         let mut qmp = self.vm.connect_qmp().await?;

@@ -1,16 +1,21 @@
 use qemu::KVM;
 use vm_types::{Config, DriveDevice, NetworkInterface, VirtualMachine};
 
-use crate::{Error, yavecontext::YaveContextParams};
+use crate::{Error, contexts::{vm::VirtualMachineContext, yave::NetdevScripts}};
 
-pub struct VmRunner {
-    pub config: Config,
-    pub vm: VirtualMachine,
+pub struct VmRunner<'a> {
+    pub context: &'a VirtualMachineContext,
+    pub vm_override: Option<VirtualMachine>,
 }
 
-impl VmRunner {
-    pub fn new(config: Config, vm: VirtualMachine) -> Self {
-        Self { config, vm }
+impl<'a> VmRunner<'a> {
+    pub fn new(context: &'a VirtualMachineContext) -> Self {
+        Self { context, vm_override: None }
+    }
+
+    pub fn with_vm(mut self, vm: VirtualMachine) -> Self {
+        self.vm_override = Some(vm);
+        self
     }
 
     fn build_drives(mut qemu: KVM, vm: &VirtualMachine) -> KVM {
@@ -28,10 +33,12 @@ impl VmRunner {
         qemu
     }
 
-    pub async fn create_qmp(vm_config: &VirtualMachine, paths: &YaveContextParams) -> Result<qmp::client::Client, Error> {
-        let socket_path = paths.with_vm_sock(&vm_config.name);
-        let qmp = qmp::client::Client::connect(&socket_path).await?;
-        Ok(qmp)
+    fn get_vm(&self) -> Result<VirtualMachine, Error> {
+        if let Some(vm) = &self.vm_override {
+            Ok(vm.clone())
+        } else {
+            Ok(self.context.vm_config()?.clone())
+        }
     }
 
     fn add_uefi(mut qemu: KVM, vm: &VirtualMachine, config: &Config) -> KVM {
@@ -47,11 +54,11 @@ impl VmRunner {
         qemu.vnc(&vm.vnc.display, true)
     }
     
-    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, paths: &YaveContextParams) -> KVM {
+    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, netdev_scripts: &NetdevScripts) -> KVM {
         for (id, net) in &vm.networks {
             match net {
                 NetworkInterface::Tap(tap) => {
-                    qemu = qemu.netdev_tap(id, Some(&paths.net_script_up), Some(&paths.net_script_down));
+                    qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down));
                     qemu = qemu.network_device(id, &tap.device.mac);
                 },
             }
@@ -59,28 +66,29 @@ impl VmRunner {
         qemu
     }
 
-    fn qemu_command(&self, paths: &YaveContextParams) -> Result<Vec<String>, Error> {
-        let mut qemu = KVM::new(&self.config.cli.bin)
+    fn get_qemu_command(&self) -> Result<Vec<String>, Error> {
+        let vm = self.get_vm()?;
+        let mut qemu = KVM::new(&self.context.yave_context().config()?.cli.bin)
             .enable_kvm()
-            .qmp(&paths.with_vm_sock(&self.vm.name))
+            .qmp(&self.context.qmp_socket())
             .daemonize()
-            .name(&self.vm.name)
-            .memory(self.vm.hardware.memory)
-            .smp(self.vm.hardware.vcpu)
+            .name(&vm.name)
+            .memory(vm.hardware.memory)
+            .smp(vm.hardware.vcpu)
             .virtio_vga()
             .nodefaults();
-        qemu = qemu.pidfile(&paths.with_vm_pid(&self.vm.name));
-        qemu = Self::build_drives(qemu, &self.vm);
-        qemu = Self::add_uefi(qemu, &self.vm, &self.config);
-        qemu = Self::add_vnc(qemu, &self.vm);
-        qemu = Self::add_networks(qemu, &self.vm, &paths);
+        qemu = qemu.pidfile(&self.context.pid_file());
+        qemu = Self::build_drives(qemu, &vm);
+        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config()?);
+        qemu = Self::add_vnc(qemu, &vm);
+        qemu = Self::add_networks(qemu, &vm, self.context.yave_context().netdev_scripts());
         Ok(qemu.build())
     }
 
-    pub async fn run(&self, paths: &YaveContextParams) -> Result<(), Error> {
-        let args = self.qemu_command(paths)?;
+    pub async fn run(&self) -> Result<(), Error> {
+        let args = self.get_qemu_command()?;
         let mut command = tokio::process::Command::new(&args[0]);
-        command.env(&paths.vm_name_env_variable, &self.vm.name);
+        command.env("YAVE_VM_NAME".to_string(), &self.context.vm_config()?.name);
         command.args(&args[1..]);
         command.status().await?;
         Ok(())

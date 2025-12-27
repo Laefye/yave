@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
 use vm_types::cloudinit::{Chpasswd, CloudConfig};
-use yave::{contexts::{self, vm::DriveOptions}, newvmrunner::VmRunner, yavecontext::YaveContext};
+use yave::{contexts::{self, vm::DriveOptions}, vmrunner::VmRunner};
 
 
 #[derive(Parser, Debug)]
@@ -88,10 +88,10 @@ async fn main() {
             installer.install().await.expect("Error installing VM");
         }
         Commands::List => {
-            let context = YaveContext::default();
-            let vms = context.list().expect("Error listing VMs");
+            let context = contexts::yave::YaveContext::default();
+            let vms = context.list();
             for vm in vms  {
-                println!("{}", vm);
+                println!("{}", vm.vm_config().expect("Impossible read").name);
             }
         },
         Commands::Run { name, vnc } => {
@@ -109,21 +109,7 @@ async fn main() {
             qmp.invoke(InvokeCommand::quit()).await.expect("Error shutting down VM");
         },
         Commands::Netdev { name, ifname, command } => {
-            match command {
-                NetdevCommand::Up => {
-                    let context = YaveContext::default();
-                    let vm = context.open_vm(&name).expect("Can't open vm");
-                    
-                    let vm_config = vm.vm_config().expect("Error loading VM config");
-                    let (_, interface) = vm_config.networks.iter().next().expect("No networks configured");
-                    if let Some(master) = &interface.get_network_device().master {
-                        yave::interface::set_master(&ifname, master).await.expect("Error setting master");
-                    }
-
-                    yave::interface::set_link_up(&ifname).await.expect("Error setting link up");
-                },
-                NetdevCommand::Down => todo!(),
-            }
+            println!("Netdev command {:?} for VM {} on interface {}", command, name, ifname);
         }
     }
 
