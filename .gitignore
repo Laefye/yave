@@ -9,4 +9,4 @@
 
 # Ignore vminstances
 *.vm
-vnc.table.yaml
+*.table.yaml
