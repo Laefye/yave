@@ -56,7 +56,7 @@ impl<'a> VmRunner<'a> {
     
     fn add_networks(mut qemu: KVM, vm: &VirtualMachine, netdev_scripts: &NetdevScripts) -> KVM {
         for (id, net) in &vm.networks {
-            qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down));
+            qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down), &net.ifname);
             qemu = qemu.network_device(id, &net.device.mac);
         }
         qemu

@@ -66,7 +66,7 @@ impl KVM {
             .arg("virtio-vga")
     }
 
-    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(self, id: &str, script: Option<T>, downscript: Option<S>) -> Self {
+    pub fn netdev_tap<T: AsRef<Path>, S: AsRef<Path>>(self, id: &str, script: Option<T>, downscript: Option<S>, ifname: &str) -> Self {
         let script = match script {
             Some(s) => s.as_ref().to_string_lossy().to_string(),
             None => "no".to_string(),
@@ -79,6 +79,7 @@ impl KVM {
             .arg("-netdev")
             .arg(&ArgValue::new()
                 .arg("tap")
+                .key_value("ifname", ifname)
                 .key_value("id", id)
                 .key_value("script", script)
                 .key_value("downscript", downscript)

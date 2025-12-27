@@ -48,8 +48,6 @@ enum Commands {
     },
     Netdev {
         #[arg(short, long)]
-        name: String,
-        #[arg(short, long)]
         ifname: String,
         #[command(subcommand)]
         command: NetdevCommand,
@@ -75,7 +73,7 @@ async fn main() {
                     },
                 })
                 .network(contexts::vm::NetworkOptions {
-                    
+
                 });
             let vm_context = vm_factory.create().await.expect("Error creating VM");
             println!("Created VM at {:?}", vm_context);
@@ -111,8 +109,27 @@ async fn main() {
             let qmp = vm.connect_qmp().await.expect("Error connecting to QMP");
             qmp.invoke(InvokeCommand::quit()).await.expect("Error shutting down VM");
         },
-        Commands::Netdev { name, ifname, command } => {
-            println!("Netdev command {:?} for VM {} on interface {}", command, name, ifname);
+        Commands::Netdev { ifname, command } => {
+            let context = contexts::yave::YaveContext::default();
+            let vm = context.get_vm_by_ifname(&ifname).expect("Error getting VM by ifname");
+            if let Some(vm) = vm {
+                let vm_config = vm.vm_config().expect("Impossible read");
+                let (_id, net) = vm_config.networks.iter()
+                    .find(|(_, net)| net.ifname == ifname)
+                    .expect("No network found for interface");
+                match command {
+                    NetdevCommand::Up => {
+                        yave::interface::set_link_up(&ifname).await.expect("Error bringing up interface");
+                        if let Some(master) = &net.device.master {
+                            yave::interface::set_master(&ifname, master).await.expect("Error setting master");
+                        }
+                    },
+                    NetdevCommand::Down => {
+                    },
+                }
+            } else {
+                eprintln!("No VM found for interface {}", ifname);
+            }
         }
     }
 
