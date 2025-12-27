@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::{InvokeCommand, QMP};
-use yave::{contexts::{self, vm::DriveOptions}, newvmrunner::VmRunner, yavecontext::{CreateDriveOptions, CreateVirtualMachineInput, Passwords, YaveContext}};
+use vm_types::cloudinit::{Chpasswd, CloudConfig};
+use yave::{contexts::{self, vm::DriveOptions}, newvmrunner::VmRunner, yavecontext::YaveContext};
 
 
 #[derive(Parser, Debug)]
@@ -31,6 +32,10 @@ enum Commands {
         image: Option<String>,
     },
     List,
+    Install {
+        #[arg(short, long)]
+        name: String,
+    },
     Run {
         #[arg(short, long)]
         name: String,
@@ -72,6 +77,16 @@ async fn main() {
             let vm_context = vm_factory.create().await.expect("Error creating VM");
             println!("Created VM at {:?}", vm_context);
         },
+        Commands::Install { name } => {
+            let context = contexts::yave::YaveContext::default();
+            let vm = context.vm(&name);
+            let installer = yave::installer::Installer::new(vm, CloudConfig {
+                hostname: "pussy".to_string(), password: "123".to_string(), chpasswd: Chpasswd {
+                    expire: false
+                }, ssh_pwauth: true, power_state: Default::default() 
+            });
+            installer.install().await.expect("Error installing VM");
+        }
         Commands::List => {
             let context = YaveContext::default();
             let vms = context.list().expect("Error listing VMs");

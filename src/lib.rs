@@ -5,7 +5,7 @@ mod tools;
 pub mod interface;
 pub mod yavecontext;
 pub mod vmcontext;
-mod presetinstaller;
+pub mod installer;
 mod vmrunner;
 pub mod contexts;
 pub mod newvmrunner;

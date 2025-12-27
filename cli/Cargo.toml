@@ -7,4 +7,5 @@ edition = "2024"
 clap = { version = "4.5.53", features = ["derive"] }
 yave = { path = ".." }
 qmp = { path = "../qmp" }
+vm_types = { path = "../vm_types" }
 tokio = { version = "1.48.0", features = ["full"] }
