@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use qmp::types::InvokeCommand;
 use tempfile::tempdir;
 use vm_types::{Drive, DriveDevice, IdeDevice, cloudinit::CloudConfig};
 
@@ -58,7 +57,6 @@ impl Installer {
         vmrunner.run().await?;
 
         let mut qmp = self.vm.connect_qmp().await?;
-        qmp.invoke(InvokeCommand::set_vnc_password("12345678")).await?;
         qmp.on_close().await?;
         Ok(())
     }
