@@ -22,8 +22,8 @@ pub enum Error {
     // Errors with logic
     #[error("VM Instance is not running: {0}")]
     VMNotRunning(String),
-    #[error("VM Instance is running: {0}")]
-    VMRunning(String),
+    #[error("VM Instance is already running")]
+    VMRunning,
     #[error("VM {0} not found")]
     VMNotFound(String)
 }

@@ -18,6 +18,7 @@ async fn main() {
         .with_state(AppState {
             context,
         });
+    println!("Listening on {}", config.api.listen);
     let listener = tokio::net::TcpListener::bind(&config.api.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

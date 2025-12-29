@@ -60,7 +60,7 @@ async fn main() {
     match args.cmd {
         Commands::Create { name, vcpu, memory, capacity, image } => {
             let context = contexts::yave::YaveContext::default();
-            let vm_factory = contexts::vm::VirtualMachineFactory::new(&context, name)
+            let vm_factory = contexts::vm::VirtualMachineFactory::new(&context, &name)
                 .vcpu(vcpu)
                 .memory(memory)
                 .drive(match image {
@@ -97,7 +97,7 @@ async fn main() {
         }
         Commands::List => {
             let context = contexts::yave::YaveContext::default();
-            let vms = context.list();
+            let vms = context.list_vm();
             for vm in vms  {
                 println!("{}", vm.vm_config().expect("Impossible read").name);
             }

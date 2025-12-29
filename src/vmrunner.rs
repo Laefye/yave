@@ -82,6 +82,9 @@ impl<'a> VmRunner<'a> {
     }
 
     pub async fn run(&self) -> Result<(), Error> {
+        if self.context.is_running().await? {
+            return Err(Error::VMRunning);
+        }
         let args = self.get_qemu_command().await?;
         let mut command = tokio::process::Command::new(&args[0]);
         command.args(&args[1..]);

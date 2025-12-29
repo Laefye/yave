@@ -114,10 +114,10 @@ pub struct VirtualMachineFactory {
 }
 
 impl VirtualMachineFactory {
-    pub fn new(yave_context: &YaveContext, name: String) -> Self {
+    pub fn new(yave_context: &YaveContext, name: &str) -> Self {
         Self {
             yave_context: yave_context.clone(),
-            name,
+            name: name.to_string(),
             vcpu: 1,
             memory: 1024,
             drives: Vec::new(),

@@ -1,8 +1,12 @@
-use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::IntoResponse, routing::{delete, get, post}};
+use std::convert::Infallible;
+
+use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::{IntoResponse, Sse, sse::KeepAlive}, routing::{delete, get, post}};
 use axum_auth::AuthBasic;
+use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
-use yave::vmrunner::VmRunner;
+use tokio_stream::wrappers::ReceiverStream;
+use yave::{contexts::vm::VirtualMachineFactory, vmrunner::VmRunner};
 
 use crate::{AppState, auth};
 
@@ -13,6 +17,8 @@ pub fn router() -> Router<AppState> {
         .route("/vms/{vm}/run", post(run_vm))
         .route("/vms/{vm}/run", delete(shutdown_vm))
         .route("/vms/{vm}/run", get(get_run_vm))
+        .route("/vms/", post(create_vm))
+        .route("/vms/{vm}/install", post(install_vm))
 }   
 
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +46,7 @@ impl IntoResponse for Error {
                 detail: "virtual machine not found".to_string(),
                 status: StatusCode::NOT_FOUND.as_u16(),
             },
-            Error::Yave(yave::Error::VMRunning(_)) => ProblemDetails {
+            Error::Yave(yave::Error::VMRunning) => ProblemDetails {
                 detail: "virtual machine is already running".to_string(),
                 status: StatusCode::BAD_REQUEST.as_u16(),
             },
@@ -48,9 +54,12 @@ impl IntoResponse for Error {
                 detail: "virtual machine is not running".to_string(),
                 status: StatusCode::BAD_REQUEST.as_u16(),
             },
-            Error::Yave(_) => ProblemDetails {
-                detail: "idk".to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+            Error::Yave(err) => {
+                println!("Yave error: {:?}", err);
+                ProblemDetails {
+                    detail: "idk".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                }
             },
         };
         let mut response = Json::from(&problem).into_response();
@@ -62,7 +71,14 @@ impl IntoResponse for Error {
 async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config().await?)?;
 
-    Ok("[]".to_string())
+    Ok(Json::from(
+        state
+            .context
+            .list_vm()
+            .into_iter()
+            .map(|vm| vm.vm_config())
+            .collect::<Result<Vec<_>, _>>()?,
+    ))
 }
 
 async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
@@ -105,5 +121,114 @@ async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): P
         .invoke(InvokeCommand::quit())
         .await
         .map_err(yave::Error::from)?;
-    Ok(Json::from(()))
+    Ok(Json::from(RunStatus {
+        is_running: false,
+    }))
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum CreateDrive {
+    #[serde(rename = "empty")]
+    Empty {
+        size: u32,
+    },
+    #[serde(rename = "from")]
+    From {
+        size: Option<u32>,
+        image: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateVMRequest {
+    name: String,
+    memory: u32,
+    vcpu: u32,
+    drives: Vec<CreateDrive>,
+}
+
+async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload): Json<CreateVMRequest>) -> Result<impl IntoResponse, Error> {
+    auth::check(&auth, &state.context.config().await?)?;
+    let mut vm_factory = VirtualMachineFactory::new(&state.context, &payload.name)
+        .memory(payload.memory)
+        .vcpu(payload.vcpu);
+    for drive in payload.drives {
+        match drive {
+            CreateDrive::Empty { size } => {
+                vm_factory = vm_factory.drive(yave::contexts::vm::DriveOptions::Empty { size });
+            }
+            CreateDrive::From { size, image } => {
+                vm_factory = vm_factory.drive(yave::contexts::vm::DriveOptions::From { size, image });
+            }
+        }
+    }
+    let vm_context = vm_factory.create().await?;
+    Ok(Json::from(vm_context.vm_config()?))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InstallRequest {
+    hostname: String,
+    password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum InstallStatus {
+    #[serde(rename = "started")]
+    Started,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed(ProblemDetails),
+}
+
+async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<InstallRequest>) -> Result<impl IntoResponse, Error> {
+    auth::check(&auth, &state.context.config().await?)?;
+
+    let vm = state.context.vm(&vm);
+    let installer = yave::installer::Installer::new(vm, vm_types::cloudinit::CloudConfig {
+        hostname: payload.hostname,
+        chpasswd: vm_types::cloudinit::Chpasswd {
+            expire: false,
+            users: vec![
+                vm_types::cloudinit::ChpasswdUser {
+                    name: "root".to_string(),
+                    password: payload.password,
+                    type_password: "text".to_string(),
+                }
+            ],
+        },
+        ssh_pwauth: true,
+        power_state: Default::default(),
+    });
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<InstallStatus, Infallible>>(1);
+    let stream = ReceiverStream::new(rx)
+        .map_ok(|status| axum::response::sse::Event::default().json_data(status).unwrap());
+    
+    tokio::spawn(async move {
+        tx.send(Ok(InstallStatus::Started)).await.ok();
+        match installer.install().await {
+            Ok(_) => {
+                tx.send(Ok(InstallStatus::Completed)).await.ok();
+            }
+            Err(err) => {
+                let problem = ProblemDetails {
+                    detail: format!("installation failed: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                };
+                tx.send(Ok(InstallStatus::Failed(problem))).await.ok();
+            }
+        }
+    });
+
+    let sse = Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(std::time::Duration::from_secs(10))
+            .text("keep-alive-text"),
+    );
+    Ok(sse.into_response())
+}
+
+

@@ -73,7 +73,7 @@ impl YaveContext {
             .map(|x| x.unwrap())
     }
 
-    pub fn list(&self) -> Vec<VirtualMachineContext> {
+    pub fn list_vm(&self) -> Vec<VirtualMachineContext> {
         let mut vms = Vec::new();
         for entry in self.read_storage() {
             let path = entry.path();

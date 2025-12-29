@@ -7,5 +7,5 @@ ovmf:
   vars: "/usr/share/OVMF/OVMF_VARS_4M.fd"
 api:
   groups: ['yave']
-  listen: "127.0.0.1:3000"
+  listen: "localhost:3000"
 
