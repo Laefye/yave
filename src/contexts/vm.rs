@@ -145,8 +145,8 @@ impl VirtualMachineFactory {
     pub async fn create(&self) -> Result<VirtualMachineContext, crate::Error> {
         let vnc_table_path = self.yave_context.vnc_table();
         let mut vnc_table = VNCTable::load(&vnc_table_path)?;
-        let tap_table_path = self.yave_context.tap_table();
-        let mut tap_table = vm_types::TapTable::load(&tap_table_path)?;
+        let tap_table_path = self.yave_context.net_table();
+        let mut tap_table = vm_types::NetTable::load(&tap_table_path)?;
         let vm_dir = self.yave_context.vm_dir(&self.name);
         std::fs::create_dir_all(&vm_dir)?;
         let mut vm = vm_types::VirtualMachine {
@@ -170,13 +170,13 @@ impl VirtualMachineFactory {
             let drive_path = vm_dir.join(format!("{}.img", drive_id));
             match drive {
                 DriveOptions::Empty { size } => {
-                    tools::QemuImg::new(&self.yave_context.config()?.cli.img)
+                    tools::QemuImg::new(&self.yave_context.config().await?.cli.img)
                         .create(*size, &drive_path).await?;
                 },
                 DriveOptions::From { size, image } => {
                     std::fs::copy(&self.yave_context.storage_path().join(image).with_added_extension("img"), &drive_path)?;
                     if let Some(size) = size {
-                        tools::QemuImg::new(&self.yave_context.config()?.cli.img)
+                        tools::QemuImg::new(&self.yave_context.config().await?.cli.img)
                             .resize(*size, &drive_path).await?;
                     }
                 },
@@ -190,7 +190,7 @@ impl VirtualMachineFactory {
         }
 
         for (i, _net) in self.networks.iter().enumerate() {
-            let tap_ifname = tap_table.allocate(&self.name);
+            let tap_ifname = tap_table.allocate_tap(&self.name);
             let net_id = format!("net{}", i);
             vm.networks.insert(net_id, vm_types::TapInterface {
                 device: vm_types::NetworkDevice {

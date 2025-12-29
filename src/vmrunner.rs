@@ -62,9 +62,9 @@ impl<'a> VmRunner<'a> {
         qemu
     }
 
-    fn get_qemu_command(&self) -> Result<Vec<String>, Error> {
+    async fn get_qemu_command(&self) -> Result<Vec<String>, Error> {
         let vm = self.get_vm()?;
-        let mut qemu = KVM::new(&self.context.yave_context().config()?.cli.bin)
+        let mut qemu = KVM::new(&self.context.yave_context().config().await?.cli.bin)
             .enable_kvm()
             .qmp(&self.context.qmp_socket())
             .daemonize()
@@ -75,14 +75,14 @@ impl<'a> VmRunner<'a> {
             .nodefaults();
         qemu = qemu.pidfile(&self.context.pid_file());
         qemu = Self::build_drives(qemu, &vm);
-        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config()?);
+        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config().await?);
         qemu = Self::add_vnc(qemu, &vm);
         qemu = Self::add_networks(qemu, &vm, self.context.yave_context().netdev_scripts());
         Ok(qemu.build())
     }
 
     pub async fn run(&self) -> Result<(), Error> {
-        let args = self.get_qemu_command()?;
+        let args = self.get_qemu_command().await?;
         let mut command = tokio::process::Command::new(&args[0]);
         command.args(&args[1..]);
         command.status().await?;

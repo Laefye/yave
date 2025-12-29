@@ -60,20 +60,20 @@ impl IntoResponse for Error {
 }
 
 async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config()?)?;
+    auth::check(&auth, &state.context.config().await?)?;
 
     Ok("[]".to_string())
 }
 
 async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config()?)?;
+    auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
     Ok(Json::from(vm.vm_config()?))
 }
 
 async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config()?)?;
+    auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
     let runner = VmRunner::new(&vm);
@@ -87,7 +87,7 @@ pub struct RunStatus {
 }
 
 async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<Json<RunStatus>, Error> {
-    auth::check(&auth, &state.context.config()?)?;
+    auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
     Ok(Json::from(RunStatus {
@@ -96,7 +96,7 @@ async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
 }
 
 async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config()?)?;
+    auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
     vm

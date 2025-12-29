@@ -213,19 +213,19 @@ impl VNCTable {
 
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct TapTable {
-    pub table: HashMap<String, String>,
+pub struct NetTable {
+    pub tap: HashMap<String, String>,
 }
 
-impl Default for TapTable {
+impl Default for NetTable {
     fn default() -> Self {
         Self {
-            table: HashMap::new(),
+            tap: HashMap::new(),
         }
     }
 }
 
-impl TapTable {
+impl NetTable {
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let tap_str = serde_yaml::to_string(&self).unwrap();
         std::fs::write(path, tap_str)?;
@@ -236,23 +236,23 @@ impl TapTable {
         let tap_str = match std::fs::read_to_string(path) {
             Ok(s) => s,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(TapTable::default());
+                return Ok(NetTable::default());
             }
             Err(e) => return Err(Error::IO(e)),
         };
-        let tap_table = serde_yaml::from_str::<TapTable>(&tap_str)?;
+        let tap_table = serde_yaml::from_str::<NetTable>(&tap_str)?;
         Ok(tap_table)
     }
 
-    pub fn allocate(&mut self, name: &str) -> String {
-        if self.table.values().any(|n| n == &name) {
-            return self.table.iter().find(|(_, v)| *v == &name).unwrap().0.clone();
+    pub fn allocate_tap(&mut self, name: &str) -> String {
+        if self.tap.values().any(|n| n == &name) {
+            return self.tap.iter().find(|(_, v)| *v == &name).unwrap().0.clone();
         }
         let mut display = 1;
         loop {
             let tap_ifname = format!("yave{}", display);
-            if !self.table.contains_key(&tap_ifname) {
-                self.table.insert(tap_ifname.clone(), name.to_string());
+            if !self.tap.contains_key(&tap_ifname) {
+                self.tap.insert(tap_ifname.clone(), name.to_string());
                 return tap_ifname;
             }
             display += 1;

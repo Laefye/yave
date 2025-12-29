@@ -12,7 +12,7 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let context = YaveContext::default();
-    let config = context.config().expect("Failed to load config");
+    let config = context.config().await.expect("Failed to load config");
     let app = Router::new()
         .nest("/v1/", v1::router())
         .with_state(AppState {

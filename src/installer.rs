@@ -23,7 +23,7 @@ impl Installer {
         std::fs::write(source_iso_dir.path().join("meta-data"), "")?;
         std::fs::write(source_iso_dir.path().join("network-config"), "")?;
 
-        GenIsoImage::new(&self.vm.yave_context().config()?.cli.genisoimage)
+        GenIsoImage::new(&self.vm.yave_context().config().await?.cli.genisoimage)
             .create(
                 source_iso_dir.path(),
                 output_iso,

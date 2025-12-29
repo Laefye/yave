@@ -44,8 +44,8 @@ impl YaveContext {
         &self.run_path
     }
 
-    pub fn config(&self) -> Result<Config, crate::Error> {
-        let mut config_lock = self.config.blocking_write();
+    pub async fn config(&self) -> Result<Config, crate::Error> {
+        let mut config_lock = self.config.write().await;
         if config_lock.is_none() {
             let config = Config::load(&self.config_path)?;
             *config_lock = Some(config);
@@ -61,8 +61,8 @@ impl YaveContext {
         self.storage_path.join("vnc.table.yaml")
     }
 
-    pub fn tap_table(&self) -> PathBuf {
-        self.storage_path.join("tap.table.yaml")
+    pub fn net_table(&self) -> PathBuf {
+        self.storage_path.join("net.table.yaml")
     }
 
     pub fn vm(&self, name: impl ToString) -> VirtualMachineContext {
@@ -89,9 +89,9 @@ impl YaveContext {
     }
 
     pub fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineContext>, crate::Error> {
-        let tap_table_path = self.tap_table();
-        let tap_table = vm_types::TapTable::load(&tap_table_path)?;
-        if let Some(vm_name) = tap_table.table.get(ifname) {
+        let tap_table_path = self.net_table();
+        let tap_table = vm_types::NetTable::load(&tap_table_path)?;
+        if let Some(vm_name) = tap_table.tap.get(ifname) {
             let vm_context = self.vm(&vm_name);
             Ok(Some(vm_context))
         } else {
