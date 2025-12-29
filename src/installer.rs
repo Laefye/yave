@@ -57,6 +57,8 @@ impl Installer {
         vmrunner.run().await?;
 
         let mut qmp = self.vm.connect_qmp().await?;
+        #[cfg(debug_assertions)]
+        qmp.invoke(qmp::types::InvokeCommand::set_vnc_password("12345678")).await?;
         qmp.on_close().await?;
         Ok(())
     }

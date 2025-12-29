@@ -1,9 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChpasswdUser {
+    pub name: String,
+    pub password: String,
+    #[serde(rename = "type")]
+    pub type_password: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chpasswd {
     pub expire: bool,
+    pub users: Vec<ChpasswdUser>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,10 +35,10 @@ impl Default for PowerState {
     }
 }
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudConfig {
     pub hostname: String,
-    pub password: String,
     pub chpasswd: Chpasswd,
     pub ssh_pwauth: bool,
     pub power_state: PowerState,

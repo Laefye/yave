@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
-use vm_types::cloudinit::{Chpasswd, CloudConfig};
+use vm_types::cloudinit::{Chpasswd, ChpasswdUser, CloudConfig};
 use yave::{contexts::{self, vm::DriveOptions}, vmrunner::VmRunner};
 
 
@@ -82,9 +82,16 @@ async fn main() {
             let context = contexts::yave::YaveContext::default();
             let vm = context.vm(&name);
             let installer = yave::installer::Installer::new(vm, CloudConfig {
-                hostname: "pussy".to_string(), password: "123".to_string(), chpasswd: Chpasswd {
-                    expire: false
-                }, ssh_pwauth: true, power_state: Default::default() 
+                hostname: "pussy".to_string(), chpasswd: Chpasswd {
+                    expire: false,
+                    users: vec![
+                        ChpasswdUser {
+                            name: "root".to_string(),
+                            password: "uwu".to_string(),
+                            type_password: "text".to_string(),
+                        }
+                    ],
+                }, ssh_pwauth: true, power_state: Default::default() ,
             });
             installer.install().await.expect("Error installing VM");
         }
