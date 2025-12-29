@@ -32,15 +32,11 @@ impl YaveContext {
         }
     }
 
-    pub fn config_path(&self) -> &Path {
-        &self.config_path
-    }
-
-    pub fn storage_path(&self) -> &Path {
+    pub(super) fn storage_path(&self) -> &Path {
         &self.storage_path
     }
 
-    pub fn run_path(&self) -> &Path {
+    pub(super) fn run_path(&self) -> &Path {
         &self.run_path
     }
 
@@ -57,11 +53,11 @@ impl YaveContext {
         self.storage_path.join(name.to_string()).with_extension("vm")
     }
 
-    pub fn vnc_table(&self) -> PathBuf {
+    pub(super) fn vnc_table(&self) -> PathBuf {
         self.storage_path.join("vnc.table.yaml")
     }
 
-    pub fn net_table(&self) -> PathBuf {
+    pub(super) fn net_table(&self) -> PathBuf {
         self.storage_path.join("net.table.yaml")
     }
 
