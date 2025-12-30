@@ -83,9 +83,9 @@ pub fn create_tables(
     )?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS vnc (
-            vm TEXT PRIMARY KEY,
-            display TEXT NOT NULL,
-            FOREIGN KEY(vm) REFERENCES vms(name)
+            display TEXT PRIMARY KEY,
+            vm TEXT NOT NULL,
+            FOREIGN KEY(display) REFERENCES vms(name)
         )",
         [],
     )?;
