@@ -97,14 +97,14 @@ async fn main() {
         }
         Commands::List => {
             let context = contexts::yave::YaveContext::default();
-            let vms = context.list_vm();
+            let vms = context.list_vm().expect("Error listing VMs");
             for vm in vms  {
-                println!("{}", vm.vm_config().expect("Impossible read").name);
+                println!("{}", vm.name());
             }
         },
         Commands::Run { name, vnc } => {
             let context = contexts::yave::YaveContext::default();
-            let vm = context.vm(name);
+            let vm = context.vm(&name);
             let runner = VmRunner::new(&vm);
             runner.run().await.expect("Error running VM");
             let qmp = qmp::client::Client::connect(&vm.qmp_socket()).await.expect("Error connecting to QMP");
@@ -112,7 +112,7 @@ async fn main() {
         },
         Commands::Shutdown { name } => {
             let context = contexts::yave::YaveContext::default();
-            let vm = context.vm(name);
+            let vm = context.vm(&name);
             let qmp = vm.connect_qmp().await.expect("Error connecting to QMP");
             qmp.invoke(InvokeCommand::quit()).await.expect("Error shutting down VM");
         },
@@ -120,7 +120,7 @@ async fn main() {
             let context = contexts::yave::YaveContext::default();
             let vm = context.get_vm_by_ifname(&ifname).expect("Error getting VM by ifname");
             if let Some(vm) = vm {
-                let vm_config = vm.vm_config().expect("Impossible read");
+                let vm_config = vm.vm().expect("Impossible read");
                 let (_id, net) = vm_config.networks.iter()
                     .find(|(_, net)| net.ifname == ifname)
                     .expect("No network found for interface");

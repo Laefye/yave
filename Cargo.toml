@@ -17,6 +17,8 @@ futures-util = "0.3.31"
 async-trait = "0.1.89"
 nix = "0.30.1"
 tempfile = "3.24.0"
+redb = "3.1.0"
+wincode = "0.2.5"
 
 [workspace]
 members = ["cli", "qmp", "qemu", "nft", "vm_types", "web"]

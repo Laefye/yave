@@ -85,7 +85,7 @@ async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<S
     auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
-    Ok(Json::from(vm.vm_config()?))
+    Ok(Json::from(vm.vm()?))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -171,7 +171,7 @@ async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload)
         }
     }
     let vm_context = vm_factory.create().await?;
-    Ok(Json::from(vm_context.vm_config()?))
+    Ok(Json::from(vm_context.vm()?))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -6,6 +6,7 @@ pub mod interface;
 pub mod installer;
 pub mod contexts;
 pub mod vmrunner;
+pub(crate) mod db;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,6 +20,11 @@ pub enum Error {
     Rnetlink(#[from] rtnetlink::Error),
     #[error("Signal Error: {0}")]
     Signal(#[from] nix::Error),
+    #[error("Database Error: {0}")]
+    Database(#[from] redb::Error),
+    #[error("Wincode Error: {0}")]
+    Wincode(#[from] wincode::Error),
+
     // Errors with logic
     #[error("VM Instance is not running: {0}")]
     VMNotRunning(String),
@@ -30,7 +36,7 @@ pub enum Error {
 
 impl Default for contexts::yave::YaveContext {
     fn default() -> Self {
-        Self::new(
+        Self::load(
             get_config_path(),
             get_vm_config_path(),
             get_run_path(),
@@ -38,6 +44,6 @@ impl Default for contexts::yave::YaveContext {
                 up: get_net_script(true),
                 down: get_net_script(false),
             },
-        )
+        ).expect("Error loading Yave configuration")
     }
 }

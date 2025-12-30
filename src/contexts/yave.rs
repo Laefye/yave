@@ -1,14 +1,13 @@
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::path::{Path, PathBuf};
 
-use tokio::sync::RwLock;
+use redb::Database;
 use vm_types::Config;
 
-use crate::contexts::vm::VirtualMachineContext;
+use crate::{contexts::vm::VirtualMachineContext, db::get_vms};
 
 #[derive(Debug, Clone)]
 pub struct YaveContext {
-    config: Arc<RwLock<Option<Config>>>,
-    config_path: PathBuf,
+    config: Config,
     storage_path: PathBuf,
     run_path: PathBuf,
     netdev_scripts: NetdevScripts,
@@ -21,32 +20,45 @@ pub struct NetdevScripts {
 }
 
 impl YaveContext {
-    pub fn new(config_path: impl AsRef<Path>, storage_path: impl AsRef<Path>, run_path: impl AsRef<Path>, netdev_scripts: &NetdevScripts) -> Self
+    pub fn new(config: Config, storage_path: impl AsRef<Path>, run_path: impl AsRef<Path>, netdev_scripts: &NetdevScripts) -> Self
     {
         Self {
-            config: Arc::new(RwLock::new(None)),
-            config_path: config_path.as_ref().to_path_buf(),
+            config,
             storage_path: storage_path.as_ref().to_path_buf(),
             run_path: run_path.as_ref().to_path_buf(),
             netdev_scripts: netdev_scripts.clone(),
         }
     }
 
+    pub fn load(config_path: impl AsRef<Path>, storage_path: impl AsRef<Path>, run_path: impl AsRef<Path>, netdev_scripts: &NetdevScripts) -> Result<Self, crate::Error> {
+        let config = Config::load(config_path.as_ref())?;
+        Ok(Self::new(
+            config,
+            storage_path,
+            run_path,
+            netdev_scripts,
+        ))
+    }
+
     pub(super) fn storage_path(&self) -> &Path {
         &self.storage_path
+    }
+
+    pub(super) fn db_path(&self) -> PathBuf {
+        self.storage_path.join("yave.db")
     }
 
     pub(super) fn run_path(&self) -> &Path {
         &self.run_path
     }
 
-    pub async fn config(&self) -> Result<Config, crate::Error> {
-        let mut config_lock = self.config.write().await;
-        if config_lock.is_none() {
-            let config = Config::load(&self.config_path)?;
-            *config_lock = Some(config);
-        }
-        Ok(config_lock.as_ref().unwrap().clone())
+    pub(super) fn database(&self) -> Result<Database, crate::Error> {
+        let db = Database::create(self.db_path()).map_err(redb::Error::from)?;
+        Ok(db)
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     pub(super) fn vm_dir(&self, name: impl ToString) -> PathBuf {
@@ -61,27 +73,17 @@ impl YaveContext {
         self.storage_path.join("net.table.yaml")
     }
 
-    pub fn vm(&self, name: impl ToString) -> VirtualMachineContext {
-        VirtualMachineContext::new(self.clone(), self.vm_dir(name).join("config.yaml"))
+    pub fn vm(&self, name: &str) -> VirtualMachineContext {
+        VirtualMachineContext::new(self.clone(), name)
     }
 
-    fn read_storage(&self) -> impl Iterator<Item = std::fs::DirEntry> {
-        std::fs::read_dir(&self.storage_path)
+    pub fn list_vm(&self) -> Result<Vec<VirtualMachineContext>, crate::Error> {
+        let db = self.database()?;
+        let vms = get_vms(&db)?
             .into_iter()
-            .flatten()
-            .filter(|x| x.is_ok())
-            .map(|x| x.unwrap())
-    }
-
-    pub fn list_vm(&self) -> Vec<VirtualMachineContext> {
-        let mut vms = Vec::new();
-        for entry in self.read_storage() {
-            let path = entry.path();
-            if path.is_dir() && path.extension().map_or(false, |ext| ext == "vm") {
-                vms.push(VirtualMachineContext::new(self.clone(), path.join("config.yaml")));
-            }
-        }
-        vms
+            .map(|vm| VirtualMachineContext::new(self.clone(), &vm.name))
+            .collect();
+        Ok(vms)
     }
 
     pub fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineContext>, crate::Error> {

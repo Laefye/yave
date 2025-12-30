@@ -1,24 +1,22 @@
-use std::{collections::HashMap, path::{Path, PathBuf}, sync::{Arc, Mutex}};
+use std::{collections::HashMap, path::PathBuf};
 
 use vm_types::{VNCTable, VirtioBlkDevice};
 
-use crate::{Error, tools};
+use crate::{Error, db::{get_vm, insert_vm}, tools};
 
 use super::yave::YaveContext;
 
 #[derive(Debug, Clone)]
 pub struct VirtualMachineContext {
     yave_context: YaveContext,
-    vm_config_path: PathBuf,
-    vm_config: Arc<Mutex<Option<vm_types::VirtualMachine>>>,
+    name: String,
 }
 
 impl VirtualMachineContext {
-    pub(super) fn new(yave_context: YaveContext, vm_config_path: impl AsRef<std::path::Path>) -> Self {
+    pub(super) fn new(yave_context: YaveContext, name: &str) -> Self {
         Self {
             yave_context,
-            vm_config_path: vm_config_path.as_ref().to_path_buf(),
-            vm_config: Arc::new(Mutex::new(None)),
+            name: name.to_string(),
         }
     }
 
@@ -26,26 +24,15 @@ impl VirtualMachineContext {
         &self.yave_context
     }
 
-    pub fn vm_config_path(&self) -> &Path {
-        &self.vm_config_path
-    }
-
-    pub fn vm_config(&self) -> Result<vm_types::VirtualMachine, crate::Error> {
-        {
-            let cache = self.vm_config.lock().expect("vm config lock poisoned");
-            if let Some(vm) = cache.as_ref() {
-                return Ok(vm.clone());
-            }
-        }
-
-        let vm = vm_types::VirtualMachine::load(&self.vm_config_path)?;
-        let mut cache = self.vm_config.lock().expect("vm config lock poisoned");
-        *cache = Some(vm.clone());
+    pub fn vm(&self) -> Result<vm_types::VirtualMachine, crate::Error> {
+        let db = self.yave_context.database()?;
+        let vm = get_vm(&db, &self.name)?
+            .ok_or_else(|| crate::Error::VMNotFound(self.name.clone()))?;
         Ok(vm)
     }
 
     pub fn pid_file(&self) -> PathBuf {
-        if let Ok(vm) = self.vm_config() {
+        if let Ok(vm) = self.vm() {
             self.yave_context
                 .run_path()
                 .join(&vm.name)
@@ -56,7 +43,7 @@ impl VirtualMachineContext {
     }
 
     pub fn qmp_socket(&self) -> PathBuf {
-        if let Ok(vm) = self.vm_config() {
+        if let Ok(vm) = self.vm() {
             self.yave_context
                 .run_path()
                 .join(&vm.name)
@@ -68,10 +55,14 @@ impl VirtualMachineContext {
 
     pub async fn connect_qmp(&self) -> Result<qmp::client::Client, Error> {
         if !self.is_running().await? {
-            return Err(Error::VMNotRunning(self.vm_config()?.name));
+            return Err(Error::VMNotRunning(self.vm()?.name));
         }
         let qmp = qmp::client::Client::connect(&self.qmp_socket()).await?;
         Ok(qmp)
+    }
+    
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub async fn is_running(&self) -> Result<bool, Error> {
@@ -170,13 +161,13 @@ impl VirtualMachineFactory {
             let drive_path = vm_dir.join(format!("{}.img", drive_id));
             match drive {
                 DriveOptions::Empty { size } => {
-                    tools::QemuImg::new(&self.yave_context.config().await?.cli.img)
+                    tools::QemuImg::new(&self.yave_context.config().cli.img)
                         .create(*size, &drive_path).await?;
                 },
                 DriveOptions::From { size, image } => {
                     std::fs::copy(&self.yave_context.storage_path().join(image).with_added_extension("img"), &drive_path)?;
                     if let Some(size) = size {
-                        tools::QemuImg::new(&self.yave_context.config().await?.cli.img)
+                        tools::QemuImg::new(&self.yave_context.config().cli.img)
                             .resize(*size, &drive_path).await?;
                     }
                 },
@@ -200,10 +191,9 @@ impl VirtualMachineFactory {
                 ifname: tap_ifname,
             });
         }
-        tap_table.save(&tap_table_path)?;
 
-        let vm_config_path = vm_dir.join("config.yaml");
-        vm.save(&vm_config_path)?;
-        Ok(VirtualMachineContext::new(self.yave_context.clone(), vm_config_path))
+        let db = self.yave_context.database()?;
+        insert_vm(&db, &self.name, &vm)?;
+        Ok(VirtualMachineContext::new(self.yave_context.clone(), &self.name.to_string()))
     }
 }

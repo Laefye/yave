@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
+use wincode::{SchemaRead, SchemaWrite};
 
 pub mod utils;
 pub mod cloudinit;
@@ -74,19 +75,19 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct Hardware {
     pub memory: u32,
     pub vcpu: u32,
     pub ovmf: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct VNC {
     pub display: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct VirtualMachine {
     pub name: String,
     pub hardware: Hardware,
@@ -95,7 +96,7 @@ pub struct VirtualMachine {
     pub networks: HashMap<String, TapInterface>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub enum MediaType {
     #[serde(rename = "cd")]
     Cdrom,
@@ -103,18 +104,18 @@ pub enum MediaType {
     Disk,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct IdeDevice {
     pub media_type: MediaType,
     pub boot_index: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct VirtioBlkDevice {
     pub boot_index: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 #[serde(tag = "type")]
 pub enum DriveDevice {
     #[serde(rename = "ide")]
@@ -123,7 +124,7 @@ pub enum DriveDevice {
     VirtioBlk(VirtioBlkDevice)
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct Drive {
     pub path: String,
     pub device: DriveDevice,
@@ -151,13 +152,13 @@ impl VirtualMachine {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct NetworkDevice {
     pub mac: String,
     pub master: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub struct TapInterface {
     pub device: NetworkDevice,
     pub ifname: String,

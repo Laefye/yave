@@ -23,7 +23,7 @@ impl Installer {
         std::fs::write(source_iso_dir.path().join("meta-data"), "")?;
         std::fs::write(source_iso_dir.path().join("network-config"), "")?;
 
-        GenIsoImage::new(&self.vm.yave_context().config().await?.cli.genisoimage)
+        GenIsoImage::new(&self.vm.yave_context().config().cli.genisoimage)
             .create(
                 source_iso_dir.path(),
                 output_iso,
@@ -41,7 +41,7 @@ impl Installer {
         
         self.create_iso_image(&source_iso_dir, &cloudimg_path).await?;
 
-        let mut vm = self.vm.vm_config()?.clone();
+        let mut vm = self.vm.vm()?.clone();
         vm.drives.insert(
             "cloudinit".to_string(),
             Drive {

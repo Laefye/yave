@@ -37,7 +37,7 @@ impl<'a> VmRunner<'a> {
         if let Some(vm) = &self.vm_override {
             Ok(vm.clone())
         } else {
-            Ok(self.context.vm_config()?.clone())
+            Ok(self.context.vm()?.clone())
         }
     }
 
@@ -64,7 +64,7 @@ impl<'a> VmRunner<'a> {
 
     async fn get_qemu_command(&self) -> Result<Vec<String>, Error> {
         let vm = self.get_vm()?;
-        let mut qemu = KVM::new(&self.context.yave_context().config().await?.cli.bin)
+        let mut qemu = KVM::new(&self.context.yave_context().config().cli.bin)
             .enable_kvm()
             .qmp(&self.context.qmp_socket())
             .daemonize()
@@ -75,7 +75,7 @@ impl<'a> VmRunner<'a> {
             .nodefaults();
         qemu = qemu.pidfile(&self.context.pid_file());
         qemu = Self::build_drives(qemu, &vm);
-        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config().await?);
+        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config());
         qemu = Self::add_vnc(qemu, &vm);
         qemu = Self::add_networks(qemu, &vm, self.context.yave_context().netdev_scripts());
         Ok(qemu.build())
