@@ -1,10 +1,3 @@
-use std::path::PathBuf;
-
-use tempfile::tempdir;
-use vm_types::{Drive, DriveDevice, IdeDevice, cloudinit::CloudConfig};
-
-use crate::{Error, launch, tools::GenIsoImage};
-
 // pub struct Installer {
 //     vm: VirtualMachineContext,
 //     cloud_config: CloudConfig,

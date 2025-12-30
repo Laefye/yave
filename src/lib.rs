@@ -1,10 +1,9 @@
-use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path}};
+use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path}, context::YaveContext};
 
 mod constants;
-mod tools;
 pub mod interface;
 pub mod installer;
-pub mod contexts;
+pub mod context;
 pub mod launch;
 
 pub mod registry;
@@ -36,16 +35,18 @@ pub enum Error {
     VMNotFound(String)
 }
 
-impl Default for contexts::yave::YaveContext {
-    fn default() -> Self {
-        Self::load(
-            get_config_path(),
-            get_vm_config_path(),
-            get_run_path(),
-            &contexts::yave::NetdevScripts {
-                up: get_net_script(true),
-                down: get_net_script(false),
-            },
-        ).expect("Error loading Yave configuration")
+pub struct DefaultYaveContext;
+
+impl DefaultYaveContext {
+    pub async fn create() -> Result<YaveContext, crate::Error> {
+        let config_path = get_config_path();
+        let storage_path = get_vm_config_path();
+        let run_path = get_run_path();
+        let netdev_scripts = context::NetdevScripts {
+            up: get_net_script(true),
+            down: get_net_script(false),
+        };
+        let context = YaveContext::load(config_path, storage_path, run_path, &netdev_scripts).await?;
+        Ok(context)
     }
 }

@@ -5,23 +5,24 @@ use vm_types::vm::{DriveBus, VmLaunchRequest};
 
 use crate::Error;
 
-struct VmRuntime {
+pub struct VmRuntime {
     kvm: PathBuf,
+    run_dir: PathBuf,
     ovmf_code: PathBuf,
     ovmf_vars: PathBuf,
 }
 
 impl VmRuntime {
-    pub fn new(kvm: impl Into<PathBuf>, ovmf_code: impl Into<PathBuf>, ovmf_vars: impl Into<PathBuf>) -> Self {
-        Self { kvm: kvm.into(), ovmf_code: ovmf_code.into(), ovmf_vars: ovmf_vars.into() }
+    pub fn new(kvm: impl Into<PathBuf>, run_dir: impl Into<PathBuf>, ovmf_code: impl Into<PathBuf>, ovmf_vars: impl Into<PathBuf>) -> Self {
+        Self { kvm: kvm.into(), run_dir: run_dir.into(), ovmf_code: ovmf_code.into(), ovmf_vars: ovmf_vars.into() }
     }
 
     fn args(&self, vm_request: &VmLaunchRequest) -> Vec<String> {
         let mut qemu = KVM::new(&self.kvm.to_string_lossy())
             .enable_kvm()
             .nodefaults()
-            .qmp(&vm_request.qmp_socket)
-            .pidfile(&vm_request.pid_file)
+            .qmp(&self.run_dir.join(&vm_request.id).with_added_extension(".sock"))
+            .pidfile(&self.run_dir.join(&vm_request.id).with_added_extension(".pid"))
             .daemonize()
             .name(&vm_request.hostname)
             .memory(vm_request.memory)

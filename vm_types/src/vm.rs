@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct VmLaunchRequest {
+    pub id: String,
     pub hostname: String,
     pub ovmf: bool,
     pub vcpu: u32,
@@ -11,9 +12,6 @@ pub struct VmLaunchRequest {
     pub vnc: Option<String>,
     pub drives: Vec<DriveConfig>,
     pub networks: Vec<NetworkConfig>,
-    
-    pub pid_file: PathBuf,
-    pub qmp_socket: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
