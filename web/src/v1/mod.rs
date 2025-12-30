@@ -88,12 +88,19 @@ async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<S
     Ok(Json::from(vm.vm_config()?))
 }
 
-async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RunVMRequest {
+    vnc: String,
+}
+
+async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<RunVMRequest>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config().await?)?;
 
     let vm = state.context.vm(&vm);
     let runner = VmRunner::new(&vm);
     runner.run().await?;
+    let qmp = vm.connect_qmp().await?;
+    qmp.invoke(InvokeCommand::set_vnc_password(&payload.vnc)).await.map_err(yave::Error::from)?;
     Ok(Json::from(()))
 }
 
