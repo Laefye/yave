@@ -8,6 +8,7 @@ pub mod contexts;
 pub mod launch;
 
 pub mod registry;
+pub mod storage;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
