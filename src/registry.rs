@@ -28,6 +28,7 @@ pub struct DriveRecord {
 pub struct NetworkInterfaceRecord {
     pub ifname: String,
     pub vm_id: String,
+    pub id: String,
     pub mac_address: String,
 }
 
@@ -44,7 +45,7 @@ pub struct CreateVirtualMachine {
 
 #[derive(Debug, Clone)]
 pub struct CreateNetworkInterface {
-    pub vm_id: String,
+    pub id: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -66,6 +67,8 @@ pub fn get_mac(name: &str) -> String {
     )
 }
 
+type VmInfo = (VirtualMachineRecord, Vec<DriveRecord>, Vec<NetworkInterfaceRecord>);
+
 impl VmRegistry {
     pub fn new(pool: sqlx::Pool<sqlx::Sqlite>) -> Self {
         Self { pool }
@@ -85,6 +88,7 @@ impl VmRegistry {
             CREATE TABLE IF NOT EXISTS network_interfaces (
                 ifname TEXT PRIMARY KEY,
                 vm_id TEXT NOT NULL,
+                id TEXT NOT NULL,
                 mac_address TEXT NOT NULL,
                 FOREIGN KEY(vm_id) REFERENCES virtual_machines(id)
             );
@@ -168,13 +172,14 @@ impl VmRegistry {
         for net in &vm.network_interfaces {
             sqlx::query(
                 r#"
-                INSERT INTO network_interfaces (ifname, vm_id, mac_address)
-                VALUES (?, ?, ?);
+                INSERT INTO network_interfaces (ifname, vm_id, id, mac_address)
+                VALUES (?, ?, ?, ?);
                 "#,
             )
                 .bind(self.find_free_ifname().await?.unwrap())
                 .bind(&vm.id)
-                .bind(get_mac(&net.vm_id))
+                .bind(&net.id)
+                .bind(get_mac(&net.id))
                 .execute(&self.pool)
                 .await?;
         }
@@ -192,6 +197,34 @@ impl VmRegistry {
                 .await?;
         }
         Ok(())
+    }
+
+    pub async fn get_all_about_vm(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {
+        let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
+            r#"
+            SELECT id, hostname, vcpu, memory, ovmf, vnc_display FROM virtual_machines WHERE id = ?;
+            "#,
+        )
+            .bind(vm_id)
+            .fetch_one(&self.pool)
+            .await?;
+        let drives = sqlx::query_as::<_, DriveRecord>(
+            r#"
+            SELECT vm_id, id, drive_bus FROM drives WHERE vm_id = ?;
+            "#,
+        )
+            .bind(vm_id)
+            .fetch_all(&self.pool)
+            .await?;
+        let nics = sqlx::query_as::<_, NetworkInterfaceRecord>(
+            r#"
+            SELECT ifname, vm_id, id, mac_address FROM network_interfaces WHERE vm_id = ?;
+            "#,
+        )
+            .bind(vm_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok((vm_record, drives, nics))
     }
 }
 

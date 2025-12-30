@@ -21,8 +21,8 @@ impl VmRuntime {
         let mut qemu = KVM::new(&self.kvm.to_string_lossy())
             .enable_kvm()
             .nodefaults()
-            .qmp(&self.run_dir.join(&vm_request.id).with_added_extension(".sock"))
-            .pidfile(&self.run_dir.join(&vm_request.id).with_added_extension(".pid"))
+            .qmp(&self.run_dir.join(&vm_request.id).with_added_extension("sock"))
+            .pidfile(&self.run_dir.join(&vm_request.id).with_added_extension("pid"))
             .daemonize()
             .name(&vm_request.hostname)
             .memory(vm_request.memory)
@@ -32,7 +32,7 @@ impl VmRuntime {
             qemu = qemu.ovmf(&self.ovmf_code, &self.ovmf_vars);
         }
         for drive in &vm_request.drives {
-            qemu = qemu.drive(&drive.path, &drive.id);
+            qemu = qemu.drive(&drive.id, &drive.path);
             match &drive.drive_media {
                 DriveBus::Ide { media_type, boot_index } => {
                     qemu = qemu.ide_device(&drive.id, *boot_index, &media_type.clone().into());
@@ -58,5 +58,18 @@ impl VmRuntime {
         command.args(&args[1..]);
         command.status().await?;
         Ok(())
+    }
+
+    pub async fn shutdown_vm(&self, vm_request: &VmLaunchRequest) -> Result<(), Error> {
+        let mut qmp = self.qmp_connect(vm_request).await?;
+        qmp.invoke(qmp::types::InvokeCommand::quit()).await?;
+        qmp.on_close().await?;
+        Ok(())
+    }
+
+    pub async fn qmp_connect(&self, vm_request: &VmLaunchRequest) -> Result<qmp::client::Client, Error> {
+        let socket_path = self.run_dir.join(&vm_request.id).with_added_extension("sock");
+        let qmp = qmp::client::Client::connect(&socket_path).await?;
+        Ok(qmp)
     }
 }
