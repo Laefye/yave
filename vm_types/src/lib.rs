@@ -96,6 +96,24 @@ pub struct VirtualMachine {
     pub networks: HashMap<String, TapInterface>,
 }
 
+impl VirtualMachine {
+    pub fn unresolve(&self, base: &Path) -> Self {
+        let mut unresolved = self.clone();
+        for (_, drive) in unresolved.drives.iter_mut() {
+            drive.path = unresolve(base, &drive.path);
+        }
+        unresolved
+    }
+
+    pub fn resolve(&self, base: &Path) -> Self {
+        let mut resolved = self.clone();
+        for (_, drive) in resolved.drives.iter_mut() {
+            drive.path = resolve(base, &drive.path);
+        }
+        resolved
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, SchemaWrite, SchemaRead)]
 pub enum MediaType {
     #[serde(rename = "cd")]

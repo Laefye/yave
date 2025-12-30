@@ -71,6 +71,37 @@ pub fn allocate_vnc_display(
     Ok(display_str)
 }
 
+fn format_yave(interface: u32) -> String {
+    format!("yave{}", interface)
+}
+
+pub fn allocate_yave_interface(
+    conn: &mut Connection,
+    name: &str,
+) -> Result<String, crate::Error> {
+    let tx = conn.transaction()?;
+
+    let used_interfaces: Vec<String> = {
+        let mut stmt = tx.prepare("SELECT ifname FROM interfaces")?;
+        stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    let mut interface = 1;
+    while used_interfaces.iter().find(|x| *x == &format_yave(interface)).is_some() {
+        interface += 1;
+    }
+
+    let interface_str = format_yave(interface);
+    tx.execute(
+        "INSERT INTO interfaces (vm, ifname) VALUES (?1, ?2)",
+        rusqlite::params![name, &interface_str],
+    )?;
+    tx.commit()?;
+    Ok(interface_str)
+}
+
 pub fn create_tables(
     conn: &Connection,
 ) -> Result<(), crate::Error> {
@@ -86,6 +117,14 @@ pub fn create_tables(
             display TEXT PRIMARY KEY,
             vm TEXT NOT NULL,
             FOREIGN KEY(display) REFERENCES vms(name)
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS interfaces (
+            ifname TEXT PRIMARY KEY,
+            vm TEXT NOT NULL,
+            FOREIGN KEY(ifname) REFERENCES vms(name)
         )",
         [],
     )?;

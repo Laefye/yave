@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use vm_types::VirtioBlkDevice;
 
-use crate::{Error, db::{allocate_vnc_display, get_vm, insert_vm}, tools};
+use crate::{Error, db::{allocate_vnc_display, allocate_yave_interface, get_vm, insert_vm}, tools};
 
 use super::yave::YaveContext;
 
@@ -27,7 +27,8 @@ impl VirtualMachineContext {
     pub fn vm(&self) -> Result<vm_types::VirtualMachine, crate::Error> {
         let db = self.yave_context.database()?;
         let vm = get_vm(&db, &self.name)?
-            .ok_or_else(|| crate::Error::VMNotFound(self.name.clone()))?;
+            .ok_or_else(|| crate::Error::VMNotFound(self.name.clone()))
+            .map(|x| x.resolve(&self.yave_context.vm_dir(&self.name)))?;
         Ok(vm)
     }
 
@@ -126,10 +127,8 @@ impl VirtualMachineFactory {
     }
 
     pub async fn create(&self) -> Result<VirtualMachineContext, crate::Error> {
-        let tap_table_path = self.yave_context.net_table();
-        let mut tap_table = vm_types::NetTable::load(&tap_table_path)?;
         let vm_dir = self.yave_context.vm_dir(&self.name);
-        let mut database = self.yave_context.database()?;
+        let mut conn = self.yave_context.database()?;
         std::fs::create_dir_all(&vm_dir)?;
         let mut vm = vm_types::VirtualMachine {
             name: self.name.clone(),
@@ -141,7 +140,7 @@ impl VirtualMachineFactory {
             networks: HashMap::new(),
             drives: HashMap::new(),
             vnc: vm_types::VNC {
-                display: allocate_vnc_display(&mut database, &self.name)?,
+                display: allocate_vnc_display(&mut conn, &self.name)?,
             },
         };
 
@@ -170,7 +169,7 @@ impl VirtualMachineFactory {
         }
 
         for (i, _net) in self.networks.iter().enumerate() {
-            let tap_ifname = tap_table.allocate_tap(&self.name);
+            let tap_ifname = allocate_yave_interface(&mut conn, &self.name)?;
             let net_id = format!("net{}", i);
             vm.networks.insert(net_id, vm_types::TapInterface {
                 device: vm_types::NetworkDevice {
@@ -181,7 +180,8 @@ impl VirtualMachineFactory {
             });
         }
 
-        insert_vm(&database, &self.name, &vm)?;
+        insert_vm(&conn, &self.name, &vm.unresolve(&vm_dir))?;
+
         Ok(VirtualMachineContext::new(self.yave_context.clone(), &self.name.to_string()))
     }
 }
