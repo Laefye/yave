@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use qemu::KVM;
-use vm_types::vm::{DriveBus, VmLaunchRequest};
+use vm_types::launch::{DriveBus, VmLaunchRequest};
 
 use crate::Error;
 
@@ -23,7 +23,7 @@ impl VmRunner {
             .qmp(&vm_request.qmp_socket)
             .pidfile(&vm_request.pid_file)
             .daemonize()
-            .name(&vm_request.name)
+            .name(&vm_request.hostname)
             .memory(vm_request.memory)
             .smp(vm_request.vcpu)
             .virtio_vga();
@@ -34,7 +34,7 @@ impl VmRunner {
             qemu = qemu.drive(&drive.path, &drive.id);
             match &drive.drive_media {
                 DriveBus::Ide { media_type, boot_index } => {
-                    qemu = qemu.ide_device(&drive.id, *boot_index, media_type);
+                    qemu = qemu.ide_device(&drive.id, *boot_index, &media_type.clone().into());
                 },
                 DriveBus::VirtioBlk { boot_index } => {
                     qemu = qemu.virtio_blk(&drive.id, *boot_index);

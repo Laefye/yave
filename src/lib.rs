@@ -8,6 +8,8 @@ pub mod contexts;
 pub mod vmrunner;
 pub(crate) mod db;
 
+pub mod registry;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("IO: {0}")]
@@ -23,7 +25,7 @@ pub enum Error {
     #[error("Signal Error: {0}")]
     Signal(#[from] nix::Error),
     #[error("Database Error: {0}")]
-    Database(#[from] rusqlite::Error),
+    Database(#[from] sqlx::Error),
 
     // Errors with logic
     #[error("VM Instance is not running: {0}")]

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct VmLaunchRequest {
-    pub name: String,
+    pub hostname: String,
     pub ovmf: bool,
     pub vcpu: u32,
     pub memory: u32,
@@ -20,6 +20,15 @@ pub struct VmLaunchRequest {
 pub enum DiskMediaKind {
     Cdrom,
     Disk,
+}
+
+impl From<DiskMediaKind> for qemu::device::DiskMediaKind {
+    fn from(kind: DiskMediaKind) -> Self {
+        match kind {
+            DiskMediaKind::Cdrom => qemu::device::DiskMediaKind::Cdrom,
+            DiskMediaKind::Disk => qemu::device::DiskMediaKind::Disk,
+        }
+    }
 }
 
 

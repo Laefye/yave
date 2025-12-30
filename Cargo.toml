@@ -18,7 +18,7 @@ futures-util = "0.3.31"
 async-trait = "0.1.89"
 nix = "0.30.1"
 tempfile = "3.24.0"
-rusqlite = "0.38.0"
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 
 [workspace]
 members = ["cli", "qmp", "qemu", "nft", "vm_types", "web"]
