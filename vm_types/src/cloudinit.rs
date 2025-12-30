@@ -37,14 +37,14 @@ impl Default for PowerState {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CloudConfig {
+pub struct CloudInit {
     pub hostname: String,
     pub chpasswd: Chpasswd,
     pub ssh_pwauth: bool,
     pub power_state: PowerState,
 }
 
-impl CloudConfig {
+impl CloudInit {
     pub fn to_yaml(&self) -> Result<String, crate::Error> {
         let yaml_str = serde_yaml::to_string(&self)?;
         Ok("#cloud-config\n".to_string() + &yaml_str)

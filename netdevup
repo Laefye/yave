@@ -1,4 +1,3 @@
 #!/bin/bash
 
 ./target/debug/cli netdev --ifname $1 up
-echo "Network device $1 is up." >> test.log
