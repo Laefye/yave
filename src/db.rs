@@ -1,44 +1,27 @@
-use redb::{ReadableDatabase, ReadableTable, TableDefinition, TableError};
+use rusqlite::Connection;
 use vm_types::VirtualMachine;
 
-pub const TABLE_VM: TableDefinition<&str, Vec<u8>> = TableDefinition::new("vm");
-
-/// VNC display to VM name mapping
-/// Key: display (e.g., ":1")
-/// Value: VM name
-pub const TABLE_VNC: TableDefinition<&str, &str> = TableDefinition::new("vnc");
-
-fn map_db_err(e: impl Into<redb::Error>) -> crate::Error {
-    crate::Error::Database(e.into())
-}
-
-fn map_wincode_err(e: impl Into<wincode::Error>) -> crate::Error {
-    crate::Error::Wincode(e.into())
-}
-
-
 pub fn insert_vm(
-    db: &redb::Database,
+    conn: &Connection,
     name: &str,
     vm: &VirtualMachine,
 ) -> Result<(), crate::Error> {
-    let tx = db.begin_write().map_err(map_db_err)?;
-    {
-        let mut table = tx.open_table(TABLE_VM).map_err(map_db_err)?;
-        table.insert(name, &wincode::serialize(vm).map_err(map_wincode_err)?).map_err(map_db_err)?;
-    }
-    tx.commit().map_err(map_db_err)?;
+    conn.execute(
+        "INSERT OR REPLACE INTO vms (name, config) VALUES (?1, ?2)",
+        &[name, &serde_json::to_string(vm)?],
+    )?;
     Ok(())
 }
 
 pub fn get_vm(
-    db: &redb::Database,
+    conn: &Connection,
     name: &str,
 ) -> Result<Option<VirtualMachine>, crate::Error> {
-    let tx = db.begin_read().map_err(map_db_err)?;
-    let table = tx.open_table(TABLE_VM).map_err(map_db_err)?;
-    if let Some(value) = table.get(name).map_err(map_db_err)? {
-        let vm: VirtualMachine = wincode::deserialize(&value.value()).map_err(map_wincode_err)?;
+    let mut stmt = conn.prepare("SELECT config FROM vms WHERE name = ?1")?;
+    let mut rows = stmt.query([name])?;
+    if let Some(row) = rows.next()? {
+        let config_str: String = row.get(0)?;
+        let vm: VirtualMachine = serde_json::from_str(&config_str)?;
         Ok(Some(vm))
     } else {
         Ok(None)
@@ -46,52 +29,67 @@ pub fn get_vm(
 }
 
 pub fn get_vms(
-    db: &redb::Database,
+    conn: &Connection,
 ) -> Result<Vec<VirtualMachine>, crate::Error> {
-    let tx = db.begin_read().map_err(map_db_err)?;
-    let table = tx.open_table(TABLE_VM).map_err(map_db_err)?;
-    table.iter()
-        .map_err(map_db_err)?
-        .map(|entry| {
-            let (_key, value) = entry.map_err(map_db_err)?;
-            Ok(wincode::deserialize(&value.value()).map_err(map_wincode_err)?)
-        })
-        .collect()
+    let mut stmt = conn.prepare("SELECT config FROM vms")?;
+    let vms = stmt.query_map([], |row| {
+        row.get(0)
+    })?.collect::<Result<Vec<String>, _>>()?.iter().map(|x| {
+        serde_json::from_str::<VirtualMachine>(x).map_err(crate::Error::from)
+    }).collect::<Result<Vec<VirtualMachine>, crate::Error>>()?;
+    Ok(vms)
 }
 
-fn open_table_or_none<'a>(
-    tx: &redb::ReadTransaction,
-    table_def: TableDefinition<'a, &str, &str>,
-) -> Result<Option<redb::ReadOnlyTable<&'a str, &'a str>>, crate::Error> {
-    tx.open_table(table_def)
-        .map(Some)
-        .or_else(|e| match e {
-            TableError::TableDoesNotExist(_) => Ok(None),
-            _ => Err(map_db_err(e)),
-        })
+fn format_vnc(display: u32) -> String {
+    format!(":{}", display)
 }
 
 pub fn allocate_vnc_display(
-    db: &redb::Database,
+    conn: &mut Connection,
     name: &str,
 ) -> Result<String, crate::Error> {
-    let tx = db.begin_read().map_err(map_db_err)?;
-    let mut port = 1;
-    {
-        let table = open_table_or_none(&tx, TABLE_VNC)?;
-        if let Some(table) = table {
-            while table.get(format!(":{}", port).as_str()).map_err(map_db_err)?.is_some() {
-                port += 1;
-            }
-        }
+    let tx = conn.transaction()?;
+
+    // Get all used display numbers
+    let used_displays: Vec<String> = {
+        let mut stmt = tx.prepare("SELECT display FROM vnc")?;
+        stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    // Find the first available display number
+    let mut display = 1;
+    while used_displays.iter().find(|x| *x == &format_vnc(display)).is_some() {
+        display += 1;
     }
-    let port = format!(":{}", port);
-    println!("Allocated VNC display {} for VM {}", port, name);
-    let rx = db.begin_write().map_err(map_db_err)?;
-    {
-        let mut table = rx.open_table(TABLE_VNC).map_err(map_db_err)?;
-        table.insert(port.as_str(), name).map_err(map_db_err)?;
-    }
-    rx.commit().map_err(map_db_err)?;
-    Ok(port)
+
+    let display_str = format_vnc(display);
+    tx.execute(
+        "INSERT INTO vnc (vm, display) VALUES (?1, ?2)",
+        rusqlite::params![name, &display_str],
+    )?;
+    tx.commit()?;
+    Ok(display_str)
+}
+
+pub fn create_tables(
+    conn: &Connection,
+) -> Result<(), crate::Error> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS vms (
+            name TEXT PRIMARY KEY,
+            config TEXT NOT NULL
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS vnc (
+            vm TEXT PRIMARY KEY,
+            display TEXT NOT NULL,
+            FOREIGN KEY(vm) REFERENCES vms(name)
+        )",
+        [],
+    )?;
+    Ok(())
 }

@@ -129,7 +129,7 @@ impl VirtualMachineFactory {
         let tap_table_path = self.yave_context.net_table();
         let mut tap_table = vm_types::NetTable::load(&tap_table_path)?;
         let vm_dir = self.yave_context.vm_dir(&self.name);
-        let database = self.yave_context.database()?;
+        let mut database = self.yave_context.database()?;
         std::fs::create_dir_all(&vm_dir)?;
         let mut vm = vm_types::VirtualMachine {
             name: self.name.clone(),
@@ -141,7 +141,7 @@ impl VirtualMachineFactory {
             networks: HashMap::new(),
             drives: HashMap::new(),
             vnc: vm_types::VNC {
-                display: allocate_vnc_display(&database, &self.name)?,
+                display: allocate_vnc_display(&mut database, &self.name)?,
             },
         };
 

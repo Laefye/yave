@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 serde_yaml = "0.9.34"
+serde_json = "1.0.148"
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["full"] }
 qmp = { path = "qmp" }
@@ -17,8 +18,7 @@ futures-util = "0.3.31"
 async-trait = "0.1.89"
 nix = "0.30.1"
 tempfile = "3.24.0"
-redb = "3.1.0"
-wincode = "0.2.5"
+rusqlite = "0.38.0"
 
 [workspace]
 members = ["cli", "qmp", "qemu", "nft", "vm_types", "web"]

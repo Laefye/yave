@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use redb::Database;
+use rusqlite::Connection;
 use vm_types::Config;
 
-use crate::{contexts::vm::VirtualMachineContext, db::get_vms};
+use crate::{contexts::vm::VirtualMachineContext, db::{create_tables, get_vms}};
 
 #[derive(Debug, Clone)]
 pub struct YaveContext {
@@ -52,9 +52,10 @@ impl YaveContext {
         &self.run_path
     }
 
-    pub(super) fn database(&self) -> Result<Database, crate::Error> {
-        let db = Database::create(self.db_path()).map_err(redb::Error::from)?;
-        Ok(db)
+    pub(super) fn database(&self) -> Result<Connection, crate::Error> {
+        let conn = Connection::open(self.db_path()).map_err(crate::Error::from)?;
+        create_tables(&conn)?;
+        Ok(conn)
     }
 
     pub fn config(&self) -> &Config {

@@ -14,6 +14,8 @@ pub enum Error {
     IO(#[from] std::io::Error),
     #[error("Config Error: {0}")]
     Config(#[from] vm_types::Error),
+    #[error("Serialization Error: {0}")]
+    Serialization(#[from] serde_json::Error),
     #[error("QMP Error: {0}")]
     QMP(#[from] qmp::Error),
     #[error("rtnetlink Error: {0}")]
@@ -21,9 +23,7 @@ pub enum Error {
     #[error("Signal Error: {0}")]
     Signal(#[from] nix::Error),
     #[error("Database Error: {0}")]
-    Database(#[from] redb::Error),
-    #[error("Wincode Error: {0}")]
-    Wincode(#[from] wincode::Error),
+    Database(#[from] rusqlite::Error),
 
     // Errors with logic
     #[error("VM Instance is not running: {0}")]
