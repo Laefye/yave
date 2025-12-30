@@ -1,12 +1,8 @@
 use std::path::Path;
 
-use crate::KVM;
+use vm_types::vm::DiskMediaKind;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DiskMediaKind {
-    Disk,
-    Cdrom,
-}
+use crate::KVM;
 
 struct ArgValue {
     parts: Vec<String>,

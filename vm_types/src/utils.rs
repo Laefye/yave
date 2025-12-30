@@ -1,6 +1,7 @@
-use md5::{Digest, Md5};
 
 pub fn get_mac(name: &str) -> String {
+    use md5::{Digest, Md5};
+
     let mut hasher = Md5::new();
     hasher.update(name.as_bytes());
     let hash = hasher.finalize();

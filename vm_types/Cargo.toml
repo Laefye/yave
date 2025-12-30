@@ -9,4 +9,3 @@ serde_yaml = "0.9.34"
 thiserror = "2.0.17"
 md-5 = "0.10.6"
 wincode = { version = "0.2.5", features = ["derive"] }
-qemu = { path = "../qemu" }

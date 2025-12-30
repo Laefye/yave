@@ -1,9 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::Connection;
 use vm_types::Config;
-
-use crate::{contexts::vm::VirtualMachineContext, db::{create_tables, get_vms}};
 
 #[derive(Debug, Clone)]
 pub struct YaveContext {
@@ -52,12 +49,6 @@ impl YaveContext {
         &self.run_path
     }
 
-    pub(super) fn database(&self) -> Result<Connection, crate::Error> {
-        let conn = Connection::open(self.db_path()).map_err(crate::Error::from)?;
-        create_tables(&conn)?;
-        Ok(conn)
-    }
-
     pub fn config(&self) -> &Config {
         &self.config
     }
@@ -68,23 +59,6 @@ impl YaveContext {
 
     pub(super) fn net_table(&self) -> PathBuf {
         self.storage_path.join("net.table.yaml")
-    }
-
-    pub fn vm(&self, name: &str) -> VirtualMachineContext {
-        VirtualMachineContext::new(self.clone(), name)
-    }
-
-    pub fn list_vm(&self) -> Result<Vec<VirtualMachineContext>, crate::Error> {
-        let db = self.database()?;
-        let vms = get_vms(&db)?
-            .into_iter()
-            .map(|vm| VirtualMachineContext::new(self.clone(), &vm.name))
-            .collect();
-        Ok(vms)
-    }
-
-    pub fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineContext>, crate::Error> {
-        todo!();
     }
 
     pub fn netdev_scripts(&self) -> &NetdevScripts {
