@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::KVM;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiskMediaKind {
     Disk,
     Cdrom,

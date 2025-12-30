@@ -5,7 +5,7 @@ mod tools;
 pub mod interface;
 pub mod installer;
 pub mod contexts;
-pub mod vmrunner;
+pub mod launch;
 pub(crate) mod db;
 
 pub mod registry;

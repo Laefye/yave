@@ -5,7 +5,11 @@ pub struct VmRegistry {
 #[derive(Debug, sqlx::FromRow)]
 struct VirtualMachineRecord {
     id: i64,
-    name: String,
+    hostname: String,
+    vcpu: u32,
+    memory: u32,
+    ovmf: bool,
+    vnc_display: String,
 }
 
 impl VmRegistry {

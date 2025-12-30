@@ -6,7 +6,7 @@ use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
-use yave::{contexts::vm::VirtualMachineFactory, vmrunner::OldVmRunner};
+use yave::{contexts::vm::VirtualMachineFactory, launch::OldVmRunner};
 
 use crate::{AppState, auth};
 

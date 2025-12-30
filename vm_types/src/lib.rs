@@ -5,7 +5,6 @@ use wincode::{SchemaRead, SchemaWrite};
 
 pub mod utils;
 pub mod cloudinit;
-pub mod launch;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
