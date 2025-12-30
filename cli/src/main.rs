@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
 use vm_types::cloudinit::{Chpasswd, ChpasswdUser, CloudConfig};
-use yave::{contexts::{self, vm::DriveOptions}, vmrunner::VmRunner};
+use yave::{contexts::{self, vm::DriveOptions}, vmrunner::OldVmRunner};
 
 
 #[derive(Parser, Debug)]
@@ -109,7 +109,7 @@ async fn main() {
         Commands::Run { name, vnc } => {
             let context = contexts::yave::YaveContext::default();
             let vm = context.vm(&name);
-            let runner = VmRunner::new(&vm);
+            let runner = OldVmRunner::new(&vm);
             runner.run().await.expect("Error running VM");
             let qmp = qmp::client::Client::connect(&vm.qmp_socket()).await.expect("Error connecting to QMP");
             qmp.invoke(InvokeCommand::set_vnc_password(&vnc.unwrap_or("changeme".to_string()))).await.expect("Error setting VNC password");

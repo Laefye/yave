@@ -6,7 +6,7 @@ use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
-use yave::{contexts::vm::VirtualMachineFactory, vmrunner::VmRunner};
+use yave::{contexts::vm::VirtualMachineFactory, vmrunner::OldVmRunner};
 
 use crate::{AppState, auth};
 
@@ -92,7 +92,7 @@ async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<S
     auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
-    let runner = VmRunner::new(&vm);
+    let runner = OldVmRunner::new(&vm);
     runner.run().await?;
     let qmp = vm.connect_qmp().await?;
     qmp.invoke(InvokeCommand::set_vnc_password(&payload.vnc)).await.map_err(yave::Error::from)?;

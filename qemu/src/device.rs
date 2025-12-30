@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use vm_types::MediaType;
+use vm_types::{MediaType, vm::{DiskMediaKind, DriveBus}};
 
 use crate::KVM;
 
@@ -36,10 +36,10 @@ impl ArgValue {
 }
 
 impl KVM {
-    pub fn ide_device(self, drive_id: &str, boot_index: Option<u32>, media_type: &MediaType) -> Self {
+    pub fn ide_device(self, drive_id: &str, boot_index: Option<u32>, media_type: &DiskMediaKind) -> Self {
         let device_type = match media_type {
-            MediaType::Disk => "ide-hd",
-            MediaType::Cdrom => "ide-cd",
+            DiskMediaKind::Disk => "ide-hd",
+            DiskMediaKind::Cdrom => "ide-cd",
         };
         self
             .arg("-device")

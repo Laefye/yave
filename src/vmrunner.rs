@@ -1,91 +1,58 @@
+use std::path::PathBuf;
+
 use qemu::KVM;
-use vm_types::{Config, DriveDevice, VirtualMachine};
+use vm_types::vm::{DriveBus, VmLaunchRequest};
 
-use crate::{Error, contexts::{vm::VirtualMachineContext, yave::NetdevScripts}};
+use crate::Error;
 
-pub struct VmRunner<'a> {
-    pub context: &'a VirtualMachineContext,
-    pub vm_override: Option<VirtualMachine>,
+struct VmRunner {
+    kvm: PathBuf,
+    ovmf_code: PathBuf,
+    ovmf_vars: PathBuf,
 }
 
-impl<'a> VmRunner<'a> {
-    pub fn new(context: &'a VirtualMachineContext) -> Self {
-        Self { context, vm_override: None }
+impl VmRunner {
+    pub fn new(kvm: impl Into<PathBuf>, ovmf_code: impl Into<PathBuf>, ovmf_vars: impl Into<PathBuf>) -> Self {
+        Self { kvm: kvm.into(), ovmf_code: ovmf_code.into(), ovmf_vars: ovmf_vars.into() }
     }
 
-    pub fn with_vm(mut self, vm: VirtualMachine) -> Self {
-        self.vm_override = Some(vm);
-        self
-    }
-
-    fn build_drives(mut qemu: KVM, vm: &VirtualMachine) -> KVM {
-        for (id, drive) in &vm.drives {
-            qemu = qemu.drive(id, &drive.path);
-            qemu = match &drive.device {
-                DriveDevice::Ide(ide_device) => {
-                    qemu.ide_device(id, ide_device.boot_index, &ide_device.media_type)
+    fn args(&self, vm_request: &VmLaunchRequest) -> Vec<String> {
+        let mut qemu = KVM::new(&self.kvm.to_string_lossy())
+            .enable_kvm()
+            .nodefaults()
+            .qmp(&vm_request.qmp_socket)
+            .pidfile(&vm_request.pid_file)
+            .daemonize()
+            .name(&vm_request.name)
+            .memory(vm_request.memory)
+            .smp(vm_request.vcpu)
+            .virtio_vga();
+        if vm_request.ovmf {
+            qemu = qemu.ovmf(&self.ovmf_code, &self.ovmf_vars);
+        }
+        for drive in &vm_request.drives {
+            qemu = qemu.drive(&drive.path, &drive.id);
+            match &drive.drive_media {
+                DriveBus::Ide { media_type, boot_index } => {
+                    qemu = qemu.ide_device(&drive.id, *boot_index, media_type);
                 },
-                DriveDevice::VirtioBlk(virtio_blk_device) => {
-                    qemu.virtio_blk(id, virtio_blk_device.boot_index)
+                DriveBus::VirtioBlk { boot_index } => {
+                    qemu = qemu.virtio_blk(&drive.id, *boot_index);
                 },
             }
         }
-        qemu
-    }
-
-    fn get_vm(&self) -> Result<VirtualMachine, Error> {
-        if let Some(vm) = &self.vm_override {
-            Ok(vm.clone())
-        } else {
-            Ok(self.context.vm()?.clone())
+        if let Some(vnc_display) = &vm_request.vnc {
+            qemu = qemu.vnc(vnc_display, true);
         }
-    }
-
-    fn add_uefi(mut qemu: KVM, vm: &VirtualMachine, config: &Config) -> KVM {
-        if let Some(true) = vm.hardware.ovmf {
-            let code = config.ovmf.code.clone();
-            let vars = config.ovmf.vars.clone();
-            qemu = qemu.ovmf(code, vars);
+        for network in &vm_request.networks {
+            qemu = qemu.netdev_tap(&network.id, network.netdev_up_script.as_ref(), network.netdev_down_script.as_ref(), &network.ifname);
+            qemu = qemu.network_device(&network.id, &network.mac);
         }
-        qemu
+        qemu.build()
     }
 
-    fn add_vnc(qemu: KVM, vm: &VirtualMachine) -> KVM {
-        qemu.vnc(&vm.vnc.display, true)
-    }
-    
-    fn add_networks(mut qemu: KVM, vm: &VirtualMachine, netdev_scripts: &NetdevScripts) -> KVM {
-        for (id, net) in &vm.networks {
-            qemu = qemu.netdev_tap(id, Some(&netdev_scripts.up), Some(&netdev_scripts.down), &net.ifname);
-            qemu = qemu.network_device(id, &net.device.mac);
-        }
-        qemu
-    }
-
-    async fn get_qemu_command(&self) -> Result<Vec<String>, Error> {
-        let vm = self.get_vm()?;
-        let mut qemu = KVM::new(&self.context.yave_context().config().cli.bin)
-            .enable_kvm()
-            .qmp(&self.context.qmp_socket())
-            .daemonize()
-            .name(&vm.name)
-            .memory(vm.hardware.memory)
-            .smp(vm.hardware.vcpu)
-            .virtio_vga()
-            .nodefaults();
-        qemu = qemu.pidfile(&self.context.pid_file());
-        qemu = Self::build_drives(qemu, &vm);
-        qemu = Self::add_uefi(qemu, &vm, &self.context.yave_context().config());
-        qemu = Self::add_vnc(qemu, &vm);
-        qemu = Self::add_networks(qemu, &vm, self.context.yave_context().netdev_scripts());
-        Ok(qemu.build())
-    }
-
-    pub async fn run(&self) -> Result<(), Error> {
-        if self.context.is_running().await? {
-            return Err(Error::VMRunning);
-        }
-        let args = self.get_qemu_command().await?;
+    pub async fn run_vm(&self, vm_request: &VmLaunchRequest) -> Result<(), Error> {
+        let args = self.args(vm_request);
         let mut command = tokio::process::Command::new(&args[0]);
         command.args(&args[1..]);
         command.status().await?;

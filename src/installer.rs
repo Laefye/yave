@@ -53,7 +53,7 @@ impl Installer {
             },
         );
         
-        let vmrunner = vmrunner::VmRunner::new(&self.vm).with_vm(vm);
+        let vmrunner = vmrunner::OldVmRunner::new(&self.vm).with_vm(vm);
         vmrunner.run().await?;
 
         let mut qmp = self.vm.connect_qmp().await?;

@@ -130,6 +130,7 @@ impl VirtualMachineFactory {
         let vm_dir = self.yave_context.vm_dir(&self.name);
         let mut conn = self.yave_context.database()?;
         std::fs::create_dir_all(&vm_dir)?;
+        
         let mut vm = vm_types::VirtualMachine {
             name: self.name.clone(),
             hardware: vm_types::Hardware {
