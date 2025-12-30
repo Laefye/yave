@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use vm_types::{MediaType, vm::{DiskMediaKind, DriveBus}};
+use vm_types::vm::DiskMediaKind;
 
 use crate::KVM;
 
