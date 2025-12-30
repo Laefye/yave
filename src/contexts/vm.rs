@@ -32,25 +32,17 @@ impl VirtualMachineContext {
     }
 
     pub fn pid_file(&self) -> PathBuf {
-        if let Ok(vm) = self.vm() {
-            self.yave_context
-                .run_path()
-                .join(&vm.name)
-                .with_extension("pid")
-        } else {
-            unreachable!()
-        }
+        self.yave_context
+            .run_path()
+            .join(&self.name)
+            .with_extension("pid")
     }
 
     pub fn qmp_socket(&self) -> PathBuf {
-        if let Ok(vm) = self.vm() {
-            self.yave_context
-                .run_path()
-                .join(&vm.name)
-                .with_extension("sock")
-        } else {
-            unreachable!()
-        }
+        self.yave_context
+            .run_path()
+            .join(&self.name)
+            .with_extension("sock")
     }
 
     pub async fn connect_qmp(&self) -> Result<qmp::client::Client, Error> {
