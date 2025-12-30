@@ -165,55 +165,6 @@ pub struct TapInterface {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct VNCTable {
-    pub table: HashMap<String, String>,
-}
-
-impl Default for VNCTable {
-    fn default() -> Self {
-        Self {
-            table: HashMap::new(),
-        }
-    }
-}
-
-impl VNCTable {
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let vnc_str = serde_yaml::to_string(&self).unwrap();
-        std::fs::write(path, vnc_str)?;
-        Ok(())
-    }
-
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let vnc_str = match std::fs::read_to_string(path) {
-            Ok(s) => s,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(VNCTable::default());
-            }
-            Err(e) => return Err(Error::IO(e)),
-        };
-        let vnc_table = serde_yaml::from_str::<VNCTable>(&vnc_str)?;
-        Ok(vnc_table)
-    }
-
-    pub fn allocate(&mut self, name: &str) -> String {
-        if self.table.values().any(|n| n == &name) {
-            return self.table.iter().find(|(_, v)| *v == &name).unwrap().0.clone();
-        }
-        let mut display = 1;
-        loop {
-            let display_str = format!(":{}", display);
-            if !self.table.contains_key(&display_str) {
-                self.table.insert(display_str.clone(), name.to_string());
-                return display_str;
-            }
-            display += 1;
-        }
-    }
-}
-
-
-#[derive(Debug, Deserialize, Serialize)]
 pub struct NetTable {
     pub tap: HashMap<String, String>,
 }

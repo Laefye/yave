@@ -36,6 +36,10 @@ enum Commands {
         #[arg(short, long)]
         name: String,
     },
+    Inspect {
+        #[arg(short, long)]
+        name: String,
+    },
     Run {
         #[arg(short, long)]
         name: String,
@@ -137,6 +141,12 @@ async fn main() {
             } else {
                 eprintln!("No VM found for interface {}", ifname);
             }
+        },
+        Commands::Inspect { name } => {
+            let context = contexts::yave::YaveContext::default();
+            let vm = context.vm(&name);
+            let vm_config = vm.vm().expect("Error getting VM configuration");
+            println!("{:#?}", vm_config);
         }
     }
 

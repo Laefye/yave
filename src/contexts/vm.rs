@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use vm_types::{VNCTable, VirtioBlkDevice};
+use vm_types::VirtioBlkDevice;
 
-use crate::{Error, db::{get_vm, insert_vm}, tools};
+use crate::{Error, db::{allocate_vnc_display, get_vm, insert_vm}, tools};
 
 use super::yave::YaveContext;
 
@@ -126,11 +126,10 @@ impl VirtualMachineFactory {
     }
 
     pub async fn create(&self) -> Result<VirtualMachineContext, crate::Error> {
-        let vnc_table_path = self.yave_context.vnc_table();
-        let mut vnc_table = VNCTable::load(&vnc_table_path)?;
         let tap_table_path = self.yave_context.net_table();
         let mut tap_table = vm_types::NetTable::load(&tap_table_path)?;
         let vm_dir = self.yave_context.vm_dir(&self.name);
+        let database = self.yave_context.database()?;
         std::fs::create_dir_all(&vm_dir)?;
         let mut vm = vm_types::VirtualMachine {
             name: self.name.clone(),
@@ -142,11 +141,9 @@ impl VirtualMachineFactory {
             networks: HashMap::new(),
             drives: HashMap::new(),
             vnc: vm_types::VNC {
-                display: vnc_table.allocate(&self.name),
+                display: allocate_vnc_display(&database, &self.name)?,
             },
         };
-        vnc_table.table.insert(vm.vnc.display.clone(), vm.name.clone());
-        vnc_table.save(&vnc_table_path)?;
 
         for (i, drive) in self.drives.iter().enumerate() {
             let drive_id = format!("hd{}", i);
@@ -184,8 +181,7 @@ impl VirtualMachineFactory {
             });
         }
 
-        let db = self.yave_context.database()?;
-        insert_vm(&db, &self.name, &vm)?;
+        insert_vm(&database, &self.name, &vm)?;
         Ok(VirtualMachineContext::new(self.yave_context.clone(), &self.name.to_string()))
     }
 }

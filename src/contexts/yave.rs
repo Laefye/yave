@@ -65,10 +65,6 @@ impl YaveContext {
         self.storage_path.join(name.to_string()).with_extension("vm")
     }
 
-    pub(super) fn vnc_table(&self) -> PathBuf {
-        self.storage_path.join("vnc.table.yaml")
-    }
-
     pub(super) fn net_table(&self) -> PathBuf {
         self.storage_path.join("net.table.yaml")
     }
