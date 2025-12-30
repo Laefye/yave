@@ -26,8 +26,7 @@ fn resolve<P: AsRef<Path>, C: AsRef<Path>>(base: P, relative: C) -> String {
     } else {
         absolute_base = base.as_ref().to_path_buf();
     }
-    let base_path = absolute_base.parent().unwrap_or(Path::new("."));
-    let resolved_path = base_path.join(relative.as_ref());
+    let resolved_path = absolute_base.join(relative.as_ref());
     resolved_path.to_string_lossy().to_string()
 }
 

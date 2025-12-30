@@ -69,20 +69,15 @@ impl IntoResponse for Error {
 }
 
 async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
-    Ok(Json::from(
-        state
-            .context
-            .list_vm()
-            .into_iter()
-            .map(|vm| vm.vm_config())
-            .collect::<Result<Vec<_>, _>>()?,
-    ))
+    let vms = state.context.list_vm()?.iter().map(|x| x.vm()).collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Json::from(vms))
 }
 
 async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
     Ok(Json::from(vm.vm()?))
@@ -94,7 +89,7 @@ pub struct RunVMRequest {
 }
 
 async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<RunVMRequest>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
     let runner = VmRunner::new(&vm);
@@ -110,7 +105,7 @@ pub struct RunStatus {
 }
 
 async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<Json<RunStatus>, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
     Ok(Json::from(RunStatus {
@@ -119,7 +114,7 @@ async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
 }
 
 async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
     vm
@@ -156,7 +151,7 @@ pub struct CreateVMRequest {
 }
 
 async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload): Json<CreateVMRequest>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
     let mut vm_factory = VirtualMachineFactory::new(&state.context, &payload.name)
         .memory(payload.memory)
         .vcpu(payload.vcpu);
@@ -192,7 +187,7 @@ pub enum InstallStatus {
 }
 
 async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<InstallRequest>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config().await?)?;
+    auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
     let installer = yave::installer::Installer::new(vm, vm_types::cloudinit::CloudConfig {

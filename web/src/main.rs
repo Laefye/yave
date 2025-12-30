@@ -12,14 +12,13 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let context = YaveContext::default();
-    let config = context.config().await.expect("Failed to load config");
     let app = Router::new()
         .nest("/v1/", v1::router())
         .with_state(AppState {
-            context,
+            context: context.clone(),
         });
-    println!("Listening on {}", config.api.listen);
-    let listener = tokio::net::TcpListener::bind(&config.api.listen).await.unwrap();
+    println!("Listening on {}", context.config().api.listen);
+    let listener = tokio::net::TcpListener::bind(&context.config().api.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
