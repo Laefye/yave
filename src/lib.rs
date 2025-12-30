@@ -2,7 +2,7 @@ use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_co
 
 mod constants;
 pub mod interface;
-pub mod installer;
+pub mod cloudinit;
 pub mod context;
 pub mod launch;
 

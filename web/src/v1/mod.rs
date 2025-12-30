@@ -190,7 +190,7 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
     auth::check(&auth, &state.context.config())?;
 
     let vm = state.context.vm(&vm);
-    let installer = yave::installer::Installer::new(vm, vm_types::cloudinit::CloudConfig {
+    let installer = yave::cloudinit::Installer::new(vm, vm_types::cloudinit::CloudConfig {
         hostname: payload.hostname,
         chpasswd: vm_types::cloudinit::Chpasswd {
             expire: false,
