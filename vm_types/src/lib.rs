@@ -211,17 +211,3 @@ impl NetTable {
         }
     }
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Preset {
-    pub cloudimg: String
-}
-
-impl Preset {
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let preset_str = std::fs::read_to_string(&path)?;
-        let mut preset: Preset = serde_yaml::from_str(&preset_str)?;
-        preset.cloudimg = resolve(&path, &preset.cloudimg);
-        Ok(preset)
-    }
-}
