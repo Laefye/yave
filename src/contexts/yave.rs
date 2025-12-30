@@ -84,14 +84,7 @@ impl YaveContext {
     }
 
     pub fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineContext>, crate::Error> {
-        let tap_table_path = self.net_table();
-        let tap_table = vm_types::NetTable::load(&tap_table_path)?;
-        if let Some(vm_name) = tap_table.tap.get(ifname) {
-            let vm_context = self.vm(&vm_name);
-            Ok(Some(vm_context))
-        } else {
-            Ok(None)
-        }
+        todo!();
     }
 
     pub fn netdev_scripts(&self) -> &NetdevScripts {
