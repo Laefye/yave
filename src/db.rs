@@ -50,7 +50,6 @@ pub fn allocate_vnc_display(
 ) -> Result<String, crate::Error> {
     let tx = conn.transaction()?;
 
-    // Get all used display numbers
     let used_displays: Vec<String> = {
         let mut stmt = tx.prepare("SELECT display FROM vnc")?;
         stmt
@@ -58,7 +57,6 @@ pub fn allocate_vnc_display(
             .collect::<Result<Vec<_>, _>>()?
     };
 
-    // Find the first available display number
     let mut display = 1;
     while used_displays.iter().find(|x| *x == &format_vnc(display)).is_some() {
         display += 1;
