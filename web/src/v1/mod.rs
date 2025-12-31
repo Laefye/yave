@@ -214,7 +214,7 @@ async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload)
         }
     ).await?;
     
-    let vm = registry.get_all_about_vm(&payload.name).await?;
+    let (vm, _, _) = registry.get_all_about_vm(&payload.name).await?;
     Ok(Json::from(vm))
 }
 
@@ -234,13 +234,12 @@ pub enum InstallStatus {
     #[serde(rename = "failed")]
     Failed(ProblemDetails),
 }
-
 async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<InstallRequest>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
     let builder = VmLaunchRequestBuilder::new(&state.context);
     let launch_request = builder.build(&vm).await?;
-    let installer = yave::cloudinit::CloudInitInstaller::new(&state.context);
+    let context = state.context.clone();
     let cloud_config = vm_types::cloudinit::CloudInit {
         hostname: payload.hostname,
         chpasswd: vm_types::cloudinit::Chpasswd {
@@ -262,6 +261,7 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
         .map_ok(|status| axum::response::sse::Event::default().json_data(status).unwrap());
     
     tokio::spawn(async move {
+        let installer = yave::cloudinit::CloudInitInstaller::new(&context); // Create installer inside spawn
         tx.send(Ok(InstallStatus::Started)).await.ok();
         match installer.install(&launch_request, &cloud_config).await {
             Ok(_) => {
@@ -284,5 +284,4 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
     );
     Ok(sse.into_response())
 }
-
 
