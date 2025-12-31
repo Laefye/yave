@@ -1,5 +1,5 @@
 use axum::Router;
-use yave::contexts::yave::YaveContext;
+use yave::{DefaultYaveContext, context::YaveContext};
 
 mod auth;
 mod v1;
@@ -11,7 +11,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let context = YaveContext::default();
+    let context = DefaultYaveContext::create().await.expect("Error creating context");
     let app = Router::new()
         .nest("/v1/", v1::router())
         .with_state(AppState {

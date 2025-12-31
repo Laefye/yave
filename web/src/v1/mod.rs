@@ -6,7 +6,7 @@ use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
-use yave::{contexts::vm::VirtualMachineFactory, launch::OldVmRunner};
+use yave::{builders::VmLaunchRequestBuilder, contexts::vm::VirtualMachineFactory, launch::OldVmRunner};
 
 use crate::{AppState, auth};
 
@@ -91,12 +91,16 @@ pub struct RunVMRequest {
 async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<RunVMRequest>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vm = state.context.vm(&vm);
-    let runner = OldVmRunner::new(&vm);
-    runner.run().await?;
-    let qmp = vm.connect_qmp().await?;
-    qmp.invoke(InvokeCommand::set_vnc_password(&payload.vnc)).await.map_err(yave::Error::from)?;
-    Ok(Json::from(()))
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm).await.expect("Error building launch request");
+    let runtime = state.context.runtime();
+    runtime.run_vm(&launch_request).await.expect("Error running VM");
+    runtime.qmp_connect(&launch_request).await.expect("Error connecting to QMP")
+        .invoke(InvokeCommand::set_vnc_password(&payload.vnc)).await.expect("Error setting VNC password");
+
+    Ok(Json::from(RunStatus {
+        is_running: true,
+    }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -116,13 +120,11 @@ async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
 async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vm = state.context.vm(&vm);
-    vm
-        .connect_qmp()
-        .await?
-        .invoke(InvokeCommand::quit())
-        .await
-        .map_err(yave::Error::from)?;
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm).await.expect("Error building launch request");
+    let runtime = state.context.runtime();
+    runtime.shutdown_vm(&launch_request).await.expect("Error running VM");
+
     Ok(Json::from(RunStatus {
         is_running: false,
     }))

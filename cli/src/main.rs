@@ -170,11 +170,10 @@ async fn main() {
             println!("Not implemented yet");
         },
         Commands::Inspect { name } => {
-            // let context = contexts::yave::YaveContext::default();
-            // let vm = context.vm(&name);
-            // let vm_config = vm.vm().expect("Error getting VM configuration");
-            // println!("{:#?}", vm_config);
-            todo!();
+            let context = DefaultYaveContext::create().await.expect("Error creating context");
+            let registry = context.registry();
+            let vm = registry.get_all_about_vm(&name).await.expect("Error inspecting VM");
+            println!("VM: {:?}", vm);
         }
     }
 
