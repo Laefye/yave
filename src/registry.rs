@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
 use vm_types::vm::DriveBus;
 
 pub struct VmRegistry {
     pool: sqlx::Pool<sqlx::Sqlite>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct VirtualMachineRecord {
     pub id: String,
     pub hostname: String,

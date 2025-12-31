@@ -6,7 +6,7 @@ use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
-use yave::{builders::VmLaunchRequestBuilder, contexts::vm::VirtualMachineFactory, launch::OldVmRunner};
+use yave::builders::VmLaunchRequestBuilder;
 
 use crate::{AppState, auth};
 
@@ -71,7 +71,8 @@ impl IntoResponse for Error {
 async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vms = state.context.list_vm()?.iter().map(|x| x.vm()).collect::<Result<Vec<_>, _>>()?;
+    let registry = state.context.registry();
+    let vms = registry.get_virtual_machines().await?;
 
     Ok(Json::from(vms))
 }
@@ -79,8 +80,9 @@ async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl 
 async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vm = state.context.vm(&vm);
-    Ok(Json::from(vm.vm()?))
+    let registry = state.context.registry();
+    let (vm, _, _) = registry.get_all_about_vm(&vm).await?;
+    Ok(Json::from(vm))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,9 +113,13 @@ pub struct RunStatus {
 async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<Json<RunStatus>, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vm = state.context.vm(&vm);
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm).await?;
+    let runtime = state.context.runtime();
+    let is_running = runtime.is_running(&launch_request).await?;
+    
     Ok(Json::from(RunStatus {
-        is_running: vm.is_running().await?,
+        is_running,
     }))
 }
 
@@ -154,21 +160,62 @@ pub struct CreateVMRequest {
 
 async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload): Json<CreateVMRequest>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
-    let mut vm_factory = VirtualMachineFactory::new(&state.context, &payload.name)
-        .memory(payload.memory)
-        .vcpu(payload.vcpu);
-    for drive in payload.drives {
+    
+    let registry = state.context.registry();
+    registry.create_tables().await?;
+    
+    let mut drives_spec = vec![];
+    let mut install_drives = vec![];
+    
+    for (idx, drive) in payload.drives.iter().enumerate() {
+        let drive_id = format!("drive{}", idx);
+        drives_spec.push(yave::registry::CreateDrive {
+            id: drive_id.clone(),
+            boot_order: if idx == 0 { Some(1) } else { None },
+            drive_bus: vm_types::vm::DriveBus::VirtioBlk { 
+                boot_index: if idx == 0 { Some(1) } else { None } 
+            },
+        });
+        
         match drive {
             CreateDrive::Empty { size } => {
-                vm_factory = vm_factory.drive(yave::contexts::vm::DriveOptions::Empty { size });
+                install_drives.push(yave::storage::DriveInstallMode::New {
+                    id: drive_id,
+                    size: *size,
+                });
             }
             CreateDrive::From { size, image } => {
-                vm_factory = vm_factory.drive(yave::contexts::vm::DriveOptions::From { size, image });
+                install_drives.push(yave::storage::DriveInstallMode::Existing {
+                    id: drive_id,
+                    resize: size.unwrap_or(15360),
+                    image: image.clone(),
+                });
             }
         }
     }
-    let vm_context = vm_factory.create().await?;
-    Ok(Json::from(vm_context.vm()?))
+    
+    registry.create_vm(yave::registry::CreateVirtualMachine {
+        id: payload.name.clone(),
+        hostname: payload.name.clone(),
+        vcpu: payload.vcpu,
+        memory: payload.memory,
+        ovmf: true,
+        network_interfaces: vec![yave::registry::CreateNetworkInterface {
+            id: "net0".to_string(),
+        }],
+        drives: drives_spec,
+    }).await?;
+    
+    let storage = state.context.storage();
+    storage.install_vm(
+        &payload.name,
+        &yave::storage::InstallOptions {
+            drives: install_drives,
+        }
+    ).await?;
+    
+    let vm = registry.get_all_about_vm(&payload.name).await?;
+    Ok(Json::from(vm))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -191,8 +238,10 @@ pub enum InstallStatus {
 async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<InstallRequest>) -> Result<impl IntoResponse, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let vm = state.context.vm(&vm);
-    let installer = yave::cloudinit::Installer::new(vm, vm_types::cloudinit::CloudInit {
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm).await?;
+    let installer = yave::cloudinit::CloudInitInstaller::new(&state.context);
+    let cloud_config = vm_types::cloudinit::CloudInit {
         hostname: payload.hostname,
         chpasswd: vm_types::cloudinit::Chpasswd {
             expire: false,
@@ -206,14 +255,15 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
         },
         ssh_pwauth: true,
         power_state: Default::default(),
-    });
+    };
+    
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<InstallStatus, Infallible>>(1);
     let stream = ReceiverStream::new(rx)
         .map_ok(|status| axum::response::sse::Event::default().json_data(status).unwrap());
     
     tokio::spawn(async move {
         tx.send(Ok(InstallStatus::Started)).await.ok();
-        match installer.install().await {
+        match installer.install(&launch_request, &cloud_config).await {
             Ok(_) => {
                 tx.send(Ok(InstallStatus::Completed)).await.ok();
             }

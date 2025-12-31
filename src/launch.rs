@@ -72,4 +72,12 @@ impl VmRuntime {
         let qmp = qmp::client::Client::connect(&socket_path).await?;
         Ok(qmp)
     }
+
+    pub async fn is_running(&self, vm_request: &VmLaunchRequest) -> Result<bool, Error> {
+        match self.qmp_connect(vm_request).await {
+            Ok(client) => client,
+            Err(_) => return Ok(false),
+        };
+        Ok(true)
+    }
 }
