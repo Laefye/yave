@@ -155,11 +155,11 @@ impl VmRegistry {
         Ok(None)
     }
 
-    pub async fn create_vm(&self, vm: CreateVirtualMachine) -> Result<(), crate::Error> {
-        sqlx::query(
+    pub async fn create_vm(&self, vm: CreateVirtualMachine) -> Result<VirtualMachineRecord, crate::Error> {
+        let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
             r#"
             INSERT INTO virtual_machines (id, hostname, vcpu, memory, ovmf, vnc_display)
-            VALUES (?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?) RETURNING id, hostname, vcpu, memory, ovmf, vnc_display;
             "#,
         )
             .bind(&vm.id)
@@ -168,7 +168,7 @@ impl VmRegistry {
             .bind(vm.memory as i64)
             .bind(vm.ovmf)
             .bind(self.find_free_vnc_display().await?.unwrap())
-            .execute(&self.pool)
+            .fetch_one(&self.pool)
             .await?;
         for net in &vm.network_interfaces {
             sqlx::query(
@@ -197,7 +197,7 @@ impl VmRegistry {
                 .execute(&self.pool)
                 .await?;
         }
-        Ok(())
+        Ok(vm_record)
     }
 
     pub async fn get_all_about_vm(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {

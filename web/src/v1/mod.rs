@@ -152,7 +152,8 @@ pub enum CreateDrive {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVMRequest {
-    name: String,
+    id: String,
+    hostname: String,
     memory: u32,
     vcpu: u32,
     drives: Vec<CreateDrive>,
@@ -194,9 +195,9 @@ async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload)
         }
     }
     
-    registry.create_vm(yave::registry::CreateVirtualMachine {
-        id: payload.name.clone(),
-        hostname: payload.name.clone(),
+    let vm = registry.create_vm(yave::registry::CreateVirtualMachine {
+        id: payload.id.clone(),
+        hostname: payload.hostname.clone(),
         vcpu: payload.vcpu,
         memory: payload.memory,
         ovmf: true,
@@ -208,13 +209,12 @@ async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload)
     
     let storage = state.context.storage();
     storage.install_vm(
-        &payload.name,
+        &payload.id,
         &yave::storage::InstallOptions {
             drives: install_drives,
         }
     ).await?;
     
-    let (vm, _, _) = registry.get_all_about_vm(&payload.name).await?;
     Ok(Json::from(vm))
 }
 

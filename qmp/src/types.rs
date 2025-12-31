@@ -84,6 +84,10 @@ impl InvokeCommand {
         InvokeCommand::with_args("set_password", args)
     }
 
+    pub fn reboot() -> Self {
+        InvokeCommand::Empty(EmptyCommand { execute: "system_reset".to_string() })
+    }
+
     pub fn quit() -> Self {
         InvokeCommand::Empty(EmptyCommand { execute: "quit".to_string() })
     }

@@ -50,6 +50,10 @@ enum Commands {
         #[arg(short, long)]
         name: String,
     },
+    Reboot {
+        #[arg(short, long)]
+        name: String,
+    },
     Netdev {
         #[arg(short, long)]
         ifname: String,
@@ -145,6 +149,14 @@ async fn main() {
             let launch_request = builder.build(&name).await.expect("Error building launch request");
             let runtime = context.runtime();
             runtime.shutdown_vm(&launch_request).await.expect("Error shutting down VM");
+        },
+        Commands::Reboot { name } => {
+            let context = DefaultYaveContext::create().await.expect("Error creating context");
+            let builder = yave::builders::VmLaunchRequestBuilder::new(&context);
+            let launch_request = builder.build(&name).await.expect("Error building launch request");
+            let runtime = context.runtime();
+            runtime.qmp_connect(&launch_request).await.expect("Error connecting to QMP")
+                .invoke(InvokeCommand::reboot()).await.expect("Error rebooting VM");
         },
         Commands::Netdev { ifname, command } => {
             // let context = contexts::yave::YaveContext::default();
