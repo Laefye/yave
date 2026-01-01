@@ -200,7 +200,7 @@ impl VmRegistry {
         Ok(vm_record)
     }
 
-    pub async fn get_all_about_vm(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {
+    async fn get_vm_by_id(&self, vm_id: &str) -> Result<VirtualMachineRecord, crate::Error> {
         let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
             r#"
             SELECT id, hostname, vcpu, memory, ovmf, vnc_display FROM virtual_machines WHERE id = ?;
@@ -209,7 +209,10 @@ impl VmRegistry {
             .bind(vm_id)
             .fetch_optional(&self.pool)
             .await?;
-        let vm_record = vm_record.ok_or(crate::Error::VMNotFound)?;
+        vm_record.ok_or(crate::Error::VMNotFound)
+    }
+
+    async fn get_drives_by_vm_id(&self, vm_id: &str) -> Result<Vec<DriveRecord>, crate::Error> {
         let drives = sqlx::query_as::<_, DriveRecord>(
             r#"
             SELECT vm_id, id, drive_bus FROM drives WHERE vm_id = ?;
@@ -218,6 +221,10 @@ impl VmRegistry {
             .bind(vm_id)
             .fetch_all(&self.pool)
             .await?;
+        Ok(drives)
+    }
+
+    async fn get_network_interfaces_by_vm_id(&self, vm_id: &str) -> Result<Vec<NetworkInterfaceRecord>, crate::Error> {
         let nics = sqlx::query_as::<_, NetworkInterfaceRecord>(
             r#"
             SELECT ifname, vm_id, id, mac_address FROM network_interfaces WHERE vm_id = ?;
@@ -226,6 +233,13 @@ impl VmRegistry {
             .bind(vm_id)
             .fetch_all(&self.pool)
             .await?;
+        Ok(nics)
+    }
+
+    pub async fn get_all_about_vm(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {
+        let vm_record = self.get_vm_by_id(vm_id).await?;
+        let drives = self.get_drives_by_vm_id(vm_id).await?;
+        let nics = self.get_network_interfaces_by_vm_id(vm_id).await?;
         Ok((vm_record, drives, nics))
     }
 
