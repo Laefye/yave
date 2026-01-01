@@ -91,7 +91,7 @@ impl KVM {
         self
             .arg("-device")
             .arg(&ArgValue::new()
-                .arg("e1000")
+                .arg("virtio-net-pci")
                 .key_value("netdev", netdev_id)
                 .key_value("mac", mac)
                 .build()
