@@ -227,5 +227,20 @@ impl VmRegistry {
             .await?;
         Ok((vm_record, drives, nics))
     }
+
+    pub async fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineRecord>, crate::Error> {
+        let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
+            r#"
+            SELECT vm.id, vm.hostname, vm.vcpu, vm.memory, vm.ovmf, vm.vnc_display
+            FROM virtual_machines vm
+            JOIN network_interfaces ni ON vm.id = ni.vm_id
+            WHERE ni.ifname = ?;
+            "#,
+        )
+            .bind(ifname)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(vm_record)
+    }
 }
 

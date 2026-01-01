@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
 use vm_types::{cloudinit::{Chpasswd, ChpasswdUser, CloudInit}, vm::DriveBus};
-use yave::{DefaultYaveContext, cloudinit::CloudInitInstaller, registry::{self, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
+use yave::{DefaultYaveContext, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{self, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
 
 
 #[derive(Parser, Debug)]
@@ -159,27 +159,17 @@ async fn main() {
                 .invoke(InvokeCommand::reboot()).await.expect("Error rebooting VM");
         },
         Commands::Netdev { ifname, command } => {
-            // let context = contexts::yave::YaveContext::default();
-            // let vm = context.get_vm_by_ifname(&ifname).expect("Error getting VM by ifname");
-            // if let Some(vm) = vm {
-            //     let vm_config = vm.vm().expect("Impossible read");
-            //     let (_id, net) = vm_config.networks.iter()
-            //         .find(|(_, net)| net.ifname == ifname)
-            //         .expect("No network found for interface");
-            //     match command {
-            //         NetdevCommand::Up => {
-            //             yave::interface::set_link_up(&ifname).await.expect("Error bringing up interface");
-            //             if let Some(master) = &net.device.master {
-            //                 yave::interface::set_master(&ifname, master).await.expect("Error setting master");
-            //             }
-            //         },
-            //         NetdevCommand::Down => {
-            //         },
-            //     }
-            // } else {
-            //     eprintln!("No VM found for interface {}", ifname);
-            // }
-            println!("Not implemented yet");
+            let context = DefaultYaveContext::create().await.expect("Error creating context");
+            let nm = NetworkManager::new(&context);
+            match command {
+                NetdevCommand::Up => {
+                    nm.up_interface(&ifname).await.expect("Error bringing up interface");
+                },
+                NetdevCommand::Down => {
+                    // Currently not implemented
+                    println!("Not implemented yet");
+                },
+            }
         },
         Commands::Inspect { name } => {
             let context = DefaultYaveContext::create().await.expect("Error creating context");

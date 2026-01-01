@@ -1,14 +1,15 @@
 use crate::{constants::{get_config_path, get_net_script, get_run_path, get_vm_config_path}, context::YaveContext};
 
 mod constants;
-pub mod interface;
-pub mod cloudinit;
+mod interface;
 pub mod context;
 pub mod launch;
-
 pub mod registry;
 pub mod storage;
+
+pub mod cloudinit;
 pub mod builders;
+pub mod net;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -32,8 +33,8 @@ pub enum Error {
     VMNotRunning(String),
     #[error("VM Instance is already running")]
     VMRunning,
-    #[error("VM {0} not found")]
-    VMNotFound(String)
+    #[error("VM not found")]
+    VMNotFound
 }
 
 pub struct DefaultYaveContext;

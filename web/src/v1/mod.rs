@@ -42,7 +42,7 @@ impl IntoResponse for Error {
                 detail: "invalid creditinals".to_string(),
                 status: StatusCode::UNAUTHORIZED.as_u16(),
             },
-            Error::Yave(yave::Error::VMNotFound(_)) => ProblemDetails {
+            Error::Yave(yave::Error::VMNotFound) => ProblemDetails {
                 detail: "virtual machine not found".to_string(),
                 status: StatusCode::NOT_FOUND.as_u16(),
             },
