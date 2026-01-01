@@ -48,6 +48,12 @@ pub struct Config {
     pub cli: CLI,
     pub ovmf: OVMF,
     pub api: API,
+    pub network: Network,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Network {
+    pub default_bridge: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
