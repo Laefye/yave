@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
-use vm_types::{cloudinit::{Chpasswd, ChpasswdUser, CloudInit}, vm::DriveBus};
-use yave::{DefaultYaveContext, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
+use vm_types::vm::DriveBus;
+use yave::{DefaultYaveContext, builders::CloudInitBuilder, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{AddIPv4Address, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
 
 
 #[derive(Parser, Debug)]
@@ -39,6 +39,14 @@ enum Commands {
     Inspect {
         #[arg(short, long)]
         name: String,
+    },
+    Address {
+        #[arg(short, long)]
+        ifname: String,
+        #[arg(short, long)]
+        address: String,
+        #[arg(short, long)]
+        netmask: u32,
     },
     Run {
         #[arg(short, long)]
@@ -109,21 +117,8 @@ async fn main() {
             let context = DefaultYaveContext::create().await.expect("Error creating context");
             let builder = yave::builders::VmLaunchRequestBuilder::new(&context);
             let launch_request = builder.build(&name).await.expect("Error building launch request");
+            let cloud_config = CloudInitBuilder::new(&context).build(&name, "changeme").await.expect("Error building cloud-init config");
             let installer = CloudInitInstaller::new(&context);
-            let cloud_config = CloudInit {
-                hostname: name.clone(),
-                chpasswd: Chpasswd {
-                    expire: false,
-                    users: vec![ChpasswdUser {
-                        name: "root".to_string(),
-                        password: "changeme".to_string(),
-                        type_password: "text".to_string(),
-                    }],
-                },
-                ssh_pwauth: true,
-                power_state: Default::default(),
-                disable_root: Some(false),
-            };
             installer.install(&launch_request, &cloud_config).await.expect("Error installing cloud-init ISO");
         },
         Commands::List => {
@@ -175,9 +170,18 @@ async fn main() {
         Commands::Inspect { name } => {
             let context = DefaultYaveContext::create().await.expect("Error creating context");
             let registry = context.registry();
-            let vm = registry.get_all_about_vm(&name).await.expect("Error inspecting VM");
+            let vm = registry.get_vm_full(&name).await.expect("Error inspecting VM");
             println!("VM: {:?}", vm);
-        }
+        },
+        Commands::Address { ifname, address, netmask } => {
+            let context = DefaultYaveContext::create().await.expect("Error creating context");
+            let registry = context.registry();
+            registry.add_ipv4_address(AddIPv4Address {
+                ifname,
+                address,
+                netmask,
+            }).await.expect("Error adding address");
+        },
     }
 
 }

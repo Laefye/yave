@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use tokio::process::Command;
-use vm_types::vm::{DriveBus, DriveConfig, VmLaunchRequest};
+use vm_types::{cloudinit::CloudInit, vm::{DriveBus, DriveConfig, VmLaunchRequest}};
 
 use crate::context::YaveContext;
 
@@ -51,13 +51,16 @@ impl CloudConfigIso {
         })
     }
 
-    pub fn write_cloud_config(&self, cloud_config: &vm_types::cloudinit::CloudInit) -> Result<(), crate::Error> {
+    pub fn write_cloud_config(&self, cloud_config: &CloudInit) -> Result<(), crate::Error> {
         std::fs::write(
             self.source_temp_dir.path().join("user-data"),
-            cloud_config.to_yaml()?,
+            cloud_config.user_data.to_yaml()?,
         )?;
         std::fs::write(self.source_temp_dir.path().join("meta-data"), "")?;
-        std::fs::write(self.source_temp_dir.path().join("network-config"), "")?;
+        std::fs::write(
+            self.source_temp_dir.path().join("network-config"),
+                cloud_config.network_config.to_yaml()?,
+        )?;
         Ok(())
     }
 
@@ -83,7 +86,7 @@ impl<'ctx> CloudInitInstaller<'ctx> {
 
     async fn create_iso_image(
         &self,
-        cloud_config: &vm_types::cloudinit::CloudInit,
+        cloud_config: &CloudInit,
     ) -> Result<CloudConfigIso, crate::Error> {
         let cloudiso = CloudConfigIso::new()?;
         cloudiso.write_cloud_config(cloud_config)?;
@@ -100,7 +103,7 @@ impl<'ctx> CloudInitInstaller<'ctx> {
     pub async fn install(
         &self,
         launch_request: &VmLaunchRequest,
-        cloud_config: &vm_types::cloudinit::CloudInit,
+        cloud_config: &CloudInit,
     ) -> Result<(), crate::Error> {
         let iso = self.create_iso_image(cloud_config).await?;
         let mut launch_request = launch_request.clone();
@@ -116,12 +119,12 @@ impl<'ctx> CloudInitInstaller<'ctx> {
             },
             path: iso.output_iso_path().to_string_lossy().to_string(),
         });
-        println!("Launching VM with cloud-init ISO: {:?}", launch_request);
         let runtime = self.yave_context.runtime();
         runtime.run_vm(&launch_request).await?;
         let mut qmp = runtime.qmp_connect(&launch_request).await?;
         #[cfg(debug_assertions)]
         {
+            println!("Cloud Init ISO {:?}", iso.output_iso_path().to_string_lossy());
             use qmp::types::InvokeCommand;
 
             qmp.invoke(InvokeCommand::set_vnc_password("12345678")).await?;

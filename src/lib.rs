@@ -27,6 +27,8 @@ pub enum Error {
     Signal(#[from] nix::Error),
     #[error("Database Error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("No free interface names available")]
+    NoFreeIfname,
 
     // Errors with logic
     #[error("VM Instance is not running: {0}")]

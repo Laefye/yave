@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,31 +25,57 @@ pub struct PowerState {
     pub condition: String,
 }
 
-impl Default for PowerState {
-    fn default() -> Self {
-        PowerState {
-            delay: "now".to_string(),
-            mode: "poweroff".to_string(),
-            message: "The system is going down for power off NOW!".to_string(),
-            timeout: 1,
-            condition: "true".to_string(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatchInterface {
+    pub macaddress: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EthernetConfig {
+    #[serde(rename = "match")]    
+    pub match_interface: MatchInterface,
+    pub addresses: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NetworkConfig {
+    pub network: PresetNetworkConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetNetworkConfig {
+    pub version: u8,
+    pub ethernets: HashMap<String, EthernetConfig>,
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CloudInit {
+pub struct UserDataCloudInit {
     pub hostname: String,
     pub chpasswd: Chpasswd,
     pub ssh_pwauth: bool,
     pub power_state: PowerState,
-    pub disable_root: Option<bool>,
+    pub disable_root: bool,
 }
 
-impl CloudInit {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloudInit {
+    pub user_data: UserDataCloudInit,
+    pub network_config: PresetNetworkConfig,
+}
+
+impl UserDataCloudInit {
     pub fn to_yaml(&self) -> Result<String, crate::Error> {
         let yaml_str = serde_yaml::to_string(&self)?;
         Ok("#cloud-config\n".to_string() + &yaml_str)
+    }
+}
+
+impl PresetNetworkConfig {
+    pub fn to_yaml(&self) -> Result<String, crate::Error> {
+        let yaml_str = serde_yaml::to_string(&NetworkConfig {
+            network: self.clone(),
+        })?;
+        Ok(yaml_str)
     }
 }

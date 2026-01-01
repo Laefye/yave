@@ -33,6 +33,13 @@ pub struct NetworkInterfaceRecord {
     pub mac_address: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct IPv4AddressRecord {
+    pub address: String,
+    pub ifname: String,
+    pub netmask: u32,
+}
+
 #[derive(Debug, Clone)]
 pub struct CreateVirtualMachine {
     pub id: String,
@@ -47,6 +54,13 @@ pub struct CreateVirtualMachine {
 #[derive(Debug, Clone)]
 pub struct CreateNetworkInterface {
     pub id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddIPv4Address {
+    pub ifname: String,
+    pub address: String,
+    pub netmask: u32,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -68,7 +82,7 @@ pub fn get_mac(name: &str) -> String {
     )
 }
 
-type VmInfo = (VirtualMachineRecord, Vec<DriveRecord>, Vec<NetworkInterfaceRecord>);
+type VmInfo = (VirtualMachineRecord, Vec<DriveRecord>, Vec<NetworkInterfaceRecord>, Vec<IPv4AddressRecord>);
 
 impl VmRegistry {
     pub fn new(pool: sqlx::Pool<sqlx::Sqlite>) -> Self {
@@ -99,11 +113,33 @@ impl VmRegistry {
                 drive_bus TEXT NOT NULL,
                 FOREIGN KEY(vm_id) REFERENCES virtual_machines(id)
             );
+            CREATE TABLE IF NOT EXISTS ipv4_addresses (
+                address TEXT PRIMARY KEY,
+                ifname TEXT NOT NULL,
+                netmask INTEGER NOT NULL,
+                FOREIGN KEY(ifname) REFERENCES network_interfaces(ifname)
+            );
             "#,
         )
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    pub async fn add_ipv4_address(&self, addr: AddIPv4Address) -> Result<IPv4AddressRecord, crate::Error> {
+        let record = sqlx::query_as::<_, IPv4AddressRecord>(
+            r#"
+            INSERT INTO ipv4_addresses (address, ifname, netmask)
+            VALUES (?, ?, ?)
+            RETURNING address, ifname, netmask;
+            "#,
+        )
+            .bind(&addr.address)
+            .bind(&addr.ifname)
+            .bind(addr.netmask as i64)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(record)
     }
 
     pub async fn get_virtual_machines(&self) -> Result<Vec<VirtualMachineRecord>, crate::Error> {
@@ -136,7 +172,7 @@ impl VmRegistry {
         Ok(None)
     }
 
-    async fn find_free_ifname(&self) -> Result<Option<String>, crate::Error> {
+    async fn find_free_ifname(&self) -> Result<String, crate::Error> {
         let used_ifnames = sqlx::query_scalar::<_, String>(
             r#"
             SELECT ifname FROM network_interfaces;
@@ -149,10 +185,10 @@ impl VmRegistry {
         for idx in 0..1000 {
             let ifname = format!("yave{}", idx);
             if !used_ifnames.contains(&ifname) {
-                return Ok(Some(ifname));
+                return Ok(ifname);
             }
         }
-        Ok(None)
+        Err(crate::Error::NoFreeIfname)
     }
 
     pub async fn create_vm(&self, vm: CreateVirtualMachine) -> Result<VirtualMachineRecord, crate::Error> {
@@ -171,16 +207,17 @@ impl VmRegistry {
             .fetch_one(&self.pool)
             .await?;
         for net in &vm.network_interfaces {
+            let ifname = self.find_free_ifname().await?;
             sqlx::query(
                 r#"
                 INSERT INTO network_interfaces (ifname, vm_id, id, mac_address)
                 VALUES (?, ?, ?, ?);
                 "#,
             )
-                .bind(self.find_free_ifname().await?.unwrap())
+                .bind(&ifname)
                 .bind(&vm.id)
                 .bind(&net.id)
-                .bind(get_mac(&net.id))
+                .bind(get_mac(&ifname))
                 .execute(&self.pool)
                 .await?;
         }
@@ -200,7 +237,7 @@ impl VmRegistry {
         Ok(vm_record)
     }
 
-    async fn get_vm_by_id(&self, vm_id: &str) -> Result<VirtualMachineRecord, crate::Error> {
+    pub async fn get_vm_by_id(&self, vm_id: &str) -> Result<VirtualMachineRecord, crate::Error> {
         let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
             r#"
             SELECT id, hostname, vcpu, memory, ovmf, vnc_display FROM virtual_machines WHERE id = ?;
@@ -224,7 +261,19 @@ impl VmRegistry {
         Ok(drives)
     }
 
-    async fn get_network_interfaces_by_vm_id(&self, vm_id: &str) -> Result<Vec<NetworkInterfaceRecord>, crate::Error> {
+    async fn get_ipv4_by_ifname(&self, ifname: &str) -> Result<Vec<IPv4AddressRecord>, crate::Error> {
+        let addrs = sqlx::query_as::<_, IPv4AddressRecord>(
+            r#"
+            SELECT address, ifname, netmask FROM ipv4_addresses WHERE ifname = ?;
+            "#,
+        )
+            .bind(ifname)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(addrs)
+    }
+
+    pub async fn get_network_interfaces_by_vm_id(&self, vm_id: &str) -> Result<Vec<NetworkInterfaceRecord>, crate::Error> {
         let nics = sqlx::query_as::<_, NetworkInterfaceRecord>(
             r#"
             SELECT ifname, vm_id, id, mac_address FROM network_interfaces WHERE vm_id = ?;
@@ -236,11 +285,16 @@ impl VmRegistry {
         Ok(nics)
     }
 
-    pub async fn get_all_about_vm(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {
+    pub async fn get_vm_full(&self, vm_id: &str) -> Result<VmInfo, crate::Error> {
         let vm_record = self.get_vm_by_id(vm_id).await?;
         let drives = self.get_drives_by_vm_id(vm_id).await?;
         let nics = self.get_network_interfaces_by_vm_id(vm_id).await?;
-        Ok((vm_record, drives, nics))
+        let mut addrs = vec![];
+        for nic in &nics {
+            let mut nic_addrs = self.get_ipv4_by_ifname(&nic.ifname).await?;
+            addrs.append(&mut nic_addrs);
+        }
+        Ok((vm_record, drives, nics, addrs))
     }
 
     pub async fn get_vm_by_ifname(&self, ifname: &str) -> Result<VirtualMachineRecord, crate::Error> {

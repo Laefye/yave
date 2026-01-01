@@ -6,7 +6,7 @@ use futures_util::{TryStreamExt};
 use qmp::types::InvokeCommand;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
-use yave::builders::VmLaunchRequestBuilder;
+use yave::builders::{CloudInitBuilder, VmLaunchRequestBuilder};
 
 use crate::{AppState, auth};
 
@@ -81,7 +81,7 @@ async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<S
     auth::check(&auth, &state.context.config())?;
 
     let registry = state.context.registry();
-    let (vm, _, _) = registry.get_all_about_vm(&vm).await?;
+    let (vm, _, _, _) = registry.get_vm_full(&vm).await?;
     Ok(Json::from(vm))
 }
 
@@ -239,23 +239,10 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
 
     let builder = VmLaunchRequestBuilder::new(&state.context);
     let launch_request = builder.build(&vm).await?;
+    let cloud_config = CloudInitBuilder::new(&state.context)
+        .build(&vm, &payload.password)
+        .await?;
     let context = state.context.clone();
-    let cloud_config = vm_types::cloudinit::CloudInit {
-        hostname: payload.hostname,
-        chpasswd: vm_types::cloudinit::Chpasswd {
-            expire: false,
-            users: vec![
-                vm_types::cloudinit::ChpasswdUser {
-                    name: "root".to_string(),
-                    password: payload.password,
-                    type_password: "text".to_string(),
-                }
-            ],
-        },
-        disable_root: Some(false),
-        ssh_pwauth: true,
-        power_state: Default::default(),
-    };
     
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<InstallStatus, Infallible>>(1);
     let stream = ReceiverStream::new(rx)
