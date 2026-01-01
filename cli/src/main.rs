@@ -122,6 +122,7 @@ async fn main() {
                 },
                 ssh_pwauth: true,
                 power_state: Default::default(),
+                disable_root: Some(false),
             };
             installer.install(&launch_request, &cloud_config).await.expect("Error installing cloud-init ISO");
         },

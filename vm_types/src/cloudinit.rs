@@ -42,6 +42,7 @@ pub struct CloudInit {
     pub chpasswd: Chpasswd,
     pub ssh_pwauth: bool,
     pub power_state: PowerState,
+    pub disable_root: Option<bool>,
 }
 
 impl CloudInit {

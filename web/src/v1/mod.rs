@@ -252,6 +252,7 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
                 }
             ],
         },
+        disable_root: Some(false),
         ssh_pwauth: true,
         power_state: Default::default(),
     };
