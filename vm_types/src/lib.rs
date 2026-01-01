@@ -8,6 +8,8 @@ pub mod vm;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to load configuration: {0}")]
+    TOML(#[from] toml::de::Error),
+    #[error("Serialization Error: {0}")]
     YAML(#[from] serde_yaml::Error),
     #[error("Configuration file not found at path: {0}")]
     IO(#[from] std::io::Error),
@@ -58,7 +60,7 @@ pub struct CLI {
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let config_str = std::fs::read_to_string(path)?;
-        let mut config: Config = serde_yaml::from_str(&config_str)?;
+        let mut config: Config = toml::from_str(&config_str)?;
         config.cli.bin = resolve(path, &config.cli.bin);
         config.ovmf.code = resolve(path, &config.ovmf.code);
         config.ovmf.vars = resolve(path, &config.ovmf.vars);

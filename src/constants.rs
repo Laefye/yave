@@ -4,7 +4,7 @@ pub fn get_config_path() -> PathBuf {
     std::env::current_dir()
         .unwrap_or(PathBuf::from("."))
         .join("debug")
-        .join("config.yaml")
+        .join("config.toml")
 }
 
 pub fn get_run_path() -> PathBuf {

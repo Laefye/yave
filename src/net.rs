@@ -12,11 +12,9 @@ impl <'ctx> NetworkManager<'ctx> {
 
 impl <'ctx> NetworkManager<'ctx> {
     pub async fn up_interface(&self, ifname: &str) -> Result<(), crate::Error> {
-        let vm = self.context.registry().get_vm_by_ifname(ifname).await?
-            .ok_or(crate::Error::VMNotFound)?;
+        let vm = self.context.registry().get_vm_by_ifname(ifname).await?;
         println!("Bringing up interface {} for VM {:?}", ifname, vm);
         crate::interface::set_link_up(ifname).await?;
         Ok(())
-
     }
 }

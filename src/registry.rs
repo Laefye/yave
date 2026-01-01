@@ -207,8 +207,9 @@ impl VmRegistry {
             "#,
         )
             .bind(vm_id)
-            .fetch_one(&self.pool)
+            .fetch_optional(&self.pool)
             .await?;
+        let vm_record = vm_record.ok_or(crate::Error::VMNotFound)?;
         let drives = sqlx::query_as::<_, DriveRecord>(
             r#"
             SELECT vm_id, id, drive_bus FROM drives WHERE vm_id = ?;
@@ -228,7 +229,7 @@ impl VmRegistry {
         Ok((vm_record, drives, nics))
     }
 
-    pub async fn get_vm_by_ifname(&self, ifname: &str) -> Result<Option<VirtualMachineRecord>, crate::Error> {
+    pub async fn get_vm_by_ifname(&self, ifname: &str) -> Result<VirtualMachineRecord, crate::Error> {
         let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
             r#"
             SELECT vm.id, vm.hostname, vm.vcpu, vm.memory, vm.ovmf, vm.vnc_display
@@ -240,6 +241,7 @@ impl VmRegistry {
             .bind(ifname)
             .fetch_optional(&self.pool)
             .await?;
+        let vm_record = vm_record.ok_or(crate::Error::VMNotFound)?;
         Ok(vm_record)
     }
 }

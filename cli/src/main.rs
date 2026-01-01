@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
 use vm_types::{cloudinit::{Chpasswd, ChpasswdUser, CloudInit}, vm::DriveBus};
-use yave::{DefaultYaveContext, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{self, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
+use yave::{DefaultYaveContext, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
 
 
 #[derive(Parser, Debug)]

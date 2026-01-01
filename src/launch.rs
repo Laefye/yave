@@ -69,6 +69,9 @@ impl VmRuntime {
 
     pub async fn qmp_connect(&self, vm_request: &VmLaunchRequest) -> Result<qmp::client::Client, Error> {
         let socket_path = self.run_dir.join(&vm_request.id).with_added_extension("sock");
+        if !socket_path.exists() {
+            return Err(Error::VMNotFound);
+        }
         let qmp = qmp::client::Client::connect(&socket_path).await?;
         Ok(qmp)
     }
