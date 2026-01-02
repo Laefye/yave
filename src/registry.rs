@@ -69,7 +69,6 @@ pub struct AddIPv4Address {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CreateDrive {
     pub id: String,
-    pub boot_order: Option<u32>,
     pub drive_bus: DriveBus,
 }
 

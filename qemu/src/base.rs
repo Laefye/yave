@@ -67,7 +67,7 @@ pub enum ImgFormat {
 }
 
 impl Img {
-    pub fn create(self, format: ImgFormat, path: &str, size: u32) -> Self {
+    pub fn create(self, format: ImgFormat, path: &str, size: u64) -> Self {
         self.arg("create")
             .arg("-f")
             .arg(match format {
@@ -89,7 +89,7 @@ impl Img {
             .arg(dest)
     }
 
-    pub fn resize(self, path: &str, size: u32) -> Self {
+    pub fn resize(self, path: &str, size: u64) -> Self {
         self.arg("resize")
             .arg(path)
             .arg(&format!("{}M", size))

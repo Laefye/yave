@@ -27,7 +27,7 @@ enum Commands {
         #[arg(short, long, default_value = "1024")]
         memory: u32,
         #[arg(short, long, default_value = "15360")]
-        capacity: u32,
+        capacity: u64,
         #[arg(short, long)]
         image: Option<String>,
     },
@@ -91,7 +91,6 @@ async fn main() {
                 }],
                 drives: vec![CreateDrive {
                     id: "drive0".to_string(),
-                    boot_order: Some(1),
                     drive_bus: DriveBus::VirtioBlk { boot_index: Some(1) },
                 }],
             }).await.expect("Error creating VM");

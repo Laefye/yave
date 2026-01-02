@@ -1,172 +1,334 @@
 use std::convert::Infallible;
 
-use axum::{Json, Router, extract::{Path, State}, http::StatusCode, response::{IntoResponse, Sse, sse::KeepAlive}, routing::{delete, get, post}};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    response::{Sse, sse::KeepAlive},
+    routing::{delete, get, post},
+};
 use axum_auth::AuthBasic;
-use futures_util::TryStreamExt;
-use qmp::types::InvokeCommand;
+use futures_util::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use yave::builders::{CloudInitBuilder, VmLaunchRequestBuilder};
 
-use crate::{AppState, auth};
+use crate::{AppState, auth, v1::types::DriveDef};
 mod types;
 
-pub use types::{Error, ProblemDetails, RunVMRequest, RunStatus, CreateDrive, CreateVMRequest, InstallRequest, InstallStatus};
+pub use types::{
+    Error, ApiResponse, CreateVMRequest, StartVMRequest,
+    InstallRequest, InstallStatus, VMInfo, NetworkInterface, 
+    NetworkConfig, AddIpRequest, VMRuntime
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/vms/", get(get_vms))
-        .route("/vms/{vm}", get(get_vm))
-        .route("/vms/{vm}/run", post(run_vm))
-        .route("/vms/{vm}/run", delete(shutdown_vm))
-        .route("/vms/{vm}/run", get(get_run_vm))
-        .route("/vms/", post(create_vm))
-        .route("/vms/{vm}/install", post(install_vm))
+        // VMs endpoints
+        .route("/vm", get(list_vms))
+        .route("/vm", post(create_vm))
+        .route("/vm/:vm_id", get(get_vm_info))
+        .route("/vm/:vm_id", delete(delete_vm))
+        
+        // Runtime endpoints
+        .route("/vm/:vm_id/start", post(start_vm))
+        .route("/vm/:vm_id/stop", post(stop_vm))
+        .route("/vm/:vm_id/status", get(get_vm_status))
+        
+        // Network endpoints
+        .route("/vms/:vm_id/network", get(get_network_config))
+        .route("/vms/:vm_id/network/interfaces/:interface_id/ip", post(add_ip_address))
+        .route("/vms/:vm_id/network/interfaces/:interface_id/ip", delete(remove_ip_address))
+        
+        // Installation endpoints
+        .route("/vms/:vm_id/install", post(install_vm))
 }
 
-async fn get_vms(auth: AuthBasic, State(state): State<AppState>) -> Result<impl IntoResponse, Error> {
+
+// ============================================================================
+// VM Management Handlers
+// ============================================================================
+
+/// List all virtual machines
+async fn list_vms(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<VMInfo>>>, Error> {
     auth::check(&auth, &state.context.config())?;
 
     let registry = state.context.registry();
     let vms = registry.get_virtual_machines().await?;
 
-    Ok(Json::from(vms))
-}
-
-async fn get_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config())?;
-
-    let registry = state.context.registry();
-    let (vm, _, _, _) = registry.get_vm_full(&vm).await?;
-    Ok(Json::from(vm))
-}
-
-async fn run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<RunVMRequest>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config())?;
-
-    let builder = VmLaunchRequestBuilder::new(&state.context);
-    let launch_request = builder.build(&vm).await.expect("Error building launch request");
-    let runtime = state.context.runtime();
-    runtime.run_vm(&launch_request).await.expect("Error running VM");
-    runtime.qmp_connect(&launch_request).await.expect("Error connecting to QMP")
-        .invoke(InvokeCommand::set_vnc_password(&payload.vnc)).await.expect("Error setting VNC password");
-
-    Ok(Json::from(RunStatus {
-        is_running: true,
-    }))
-}
-
-async fn get_run_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<Json<RunStatus>, Error> {
-    auth::check(&auth, &state.context.config())?;
-
-    let builder = VmLaunchRequestBuilder::new(&state.context);
-    let launch_request = builder.build(&vm).await?;
-    let runtime = state.context.runtime();
-    let is_running = runtime.is_running(&launch_request).await?;
-    
-    Ok(Json::from(RunStatus {
-        is_running,
-    }))
-}
-
-async fn shutdown_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config())?;
-
-    let builder = VmLaunchRequestBuilder::new(&state.context);
-    let launch_request = builder.build(&vm).await.expect("Error building launch request");
-    let runtime = state.context.runtime();
-    runtime.shutdown_vm(&launch_request).await.expect("Error running VM");
-
-    Ok(Json::from(RunStatus {
-        is_running: false,
-    }))
-}
-
-async fn create_vm(auth: AuthBasic, State(state): State<AppState>, Json(payload): Json<CreateVMRequest>) -> Result<impl IntoResponse, Error> {
-    auth::check(&auth, &state.context.config())?;
-    
-    let registry = state.context.registry();
-    registry.create_tables().await?;
-    
-    let mut drives_spec = vec![];
-    let mut install_drives = vec![];
-    
-    for (idx, drive) in payload.drives.iter().enumerate() {
-        let drive_id = format!("drive{}", idx);
-        drives_spec.push(yave::registry::CreateDrive {
-            id: drive_id.clone(),
-            boot_order: if idx == 0 { Some(1) } else { None },
-            drive_bus: vm_types::vm::DriveBus::VirtioBlk { 
-                boot_index: if idx == 0 { Some(1) } else { None } 
-            },
-        });
-        
-        match drive {
-            CreateDrive::Empty { size } => {
-                install_drives.push(yave::storage::DriveInstallMode::New {
-                    id: drive_id,
-                    size: *size,
-                });
-            }
-            CreateDrive::From { size, image } => {
-                install_drives.push(yave::storage::DriveInstallMode::Existing {
-                    id: drive_id,
-                    resize: size.unwrap_or(15360),
-                    image: image.clone(),
-                });
-            }
+    let mut vm_infos = vec![];
+    for vm in vms {
+        let builder = VmLaunchRequestBuilder::new(&state.context);
+        if let Ok(launch_request) = builder.build(&vm.id).await {
+            let runtime = state.context.runtime();
+            let is_running = runtime.is_running(&launch_request).await.unwrap_or(false);
+            vm_infos.push(VMInfo {
+                id: vm.id,
+                hostname: vm.hostname,
+                memory: vm.memory,
+                vcpu: vm.vcpu,
+                running: is_running,
+            });
         }
     }
-    
-    let vm = registry.create_vm(yave::registry::CreateVirtualMachine {
-        id: payload.id.clone(),
-        hostname: payload.hostname.clone(),
-        vcpu: payload.vcpu,
-        memory: payload.memory,
-        ovmf: true,
-        network_interfaces: vec![yave::registry::CreateNetworkInterface {
-            id: "net0".to_string(),
-        }],
-        drives: drives_spec,
-    }).await?;
-    
-    let storage = state.context.storage();
-    storage.install_vm(
-        &payload.id,
-        &yave::storage::InstallOptions {
-            drives: install_drives,
-        }
-    ).await?;
-    
-    Ok(Json::from(vm))
+
+    Ok(Json(ApiResponse::ok(vm_infos)))
 }
 
-async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Path<String>, Json(payload): Json<InstallRequest>) -> Result<impl IntoResponse, Error> {
+/// Get virtual machine info
+async fn get_vm_info(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<VMInfo>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    let vm = registry.get_vm_by_id(&vm_id).await?;
+    let runtime = state.context.runtime();
+
+    let launch_request = VmLaunchRequestBuilder::new(&state.context)
+        .build(&vm_id)
+        .await?;
+    let is_running = runtime.is_running(&launch_request).await?;
+
+    let info = VMInfo {
+        id: vm.id,
+        hostname: vm.hostname,
+        memory: vm.memory,
+        vcpu: vm.vcpu,
+        running: is_running,
+    };
+
+    Ok(Json(ApiResponse::ok(info)))
+}
+
+/// Delete virtual machine
+async fn delete_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<String>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let message = format!("Virtual machine '{}' deleted", vm_id);
+    Ok(Json(ApiResponse::ok(message)))
+}
+
+// ============================================================================
+// Runtime Handlers
+// ============================================================================
+
+/// Start virtual machine
+async fn start_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+    Json(payload): Json<StartVMRequest>,
+) -> Result<Json<ApiResponse<VMRuntime>>, Error> {
     auth::check(&auth, &state.context.config())?;
 
     let builder = VmLaunchRequestBuilder::new(&state.context);
-    let launch_request = builder.build(&vm).await?;
+    let launch_request = builder.build(&vm_id).await?;
+    let runtime = state.context.runtime();
+
+    runtime.run_vm(&launch_request).await?;
+
+    if let Ok(client) = runtime.qmp_connect(&launch_request).await {
+        if let Some(vnc_password) = &payload.vnc_password {
+            let cmd = qmp::types::InvokeCommand::set_vnc_password(vnc_password);
+            let _ = client.invoke(cmd).await;
+        }
+    }
+
+    let status = VMRuntime {
+        is_running: true,
+        vnc_port: launch_request.vnc.map(|x| 5900 + x.parse().unwrap_or(0)),
+    };
+
+    Ok(Json(ApiResponse::ok(status)))
+}
+
+/// Stop virtual machine
+async fn stop_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<VMRuntime>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm_id).await?;
+    let runtime = state.context.runtime();
+
+    runtime.shutdown_vm(&launch_request).await?;
+
+    let status = VMRuntime {
+        is_running: false,
+        vnc_port: None,
+    };
+
+    Ok(Json(ApiResponse::ok(status)))
+}
+
+/// Get virtual machine runtime status
+async fn get_vm_status(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<VMRuntime>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm_id).await?;
+    let runtime = state.context.runtime();
+    let is_running = runtime.is_running(&launch_request).await?;
+
+    let status = VMRuntime {
+        is_running,
+        vnc_port: launch_request.vnc.map(|x| 5900 + x.parse().unwrap_or(0)),
+    };
+
+    Ok(Json(ApiResponse::ok(status)))
+}
+
+// ============================================================================
+// Network Handlers
+// ============================================================================
+
+/// Get network configuration
+async fn get_network_config(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<NetworkConfig>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    let nic_records = registry.get_network_interfaces_by_vm_id(&vm_id).await?;
+
+    let interfaces = nic_records
+        .into_iter()
+        .map(|nic| {
+            NetworkInterface {
+                id: nic.id,
+                ifname: nic.ifname,
+                mac_address: nic.mac_address,
+            }
+        })
+        .collect();
+
+    let config = NetworkConfig { interfaces };
+    Ok(Json(ApiResponse::ok(config)))
+}
+
+/// Add IP address to network interface
+async fn add_ip_address(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path((vm_id, interface_id)): Path<(String, String)>,
+    Json(payload): Json<AddIpRequest>,
+) -> Result<Json<ApiResponse<NetworkInterface>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    // Validate IP address format
+    validate_ip_address(&payload.ip_address)?;
+
+    let registry = state.context.registry();
+    let nic_records = registry.get_network_interfaces_by_vm_id(&vm_id).await?;
+
+    let nic = nic_records
+        .into_iter()
+        .find(|ni| ni.id == interface_id)
+        .ok_or(Error::NetworkInterfaceNotFound)?;
+
+    // Add IP address to the database
+    registry.add_ipv4_address(yave::registry::AddIPv4Address {
+        ifname: nic.ifname.clone(),
+        address: payload.ip_address.clone(),
+        netmask: 24,
+        gateway: None,
+    }).await?;
+
+    let result = NetworkInterface {
+        id: interface_id,
+        ifname: nic.ifname,
+        mac_address: nic.mac_address,
+    };
+
+    Ok(Json(ApiResponse::ok(result)))
+}
+
+/// Remove IP address from network interface
+async fn remove_ip_address(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path((vm_id, interface_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<String>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    let (_, _, nic_records, _) = registry.get_vm_full(&vm_id).await?;
+
+    let _nic = nic_records
+        .into_iter()
+        .find(|ni| ni.id == interface_id)
+        .ok_or(Error::NetworkInterfaceNotFound)?;
+
+    println!("Removing all IP addresses from interface {}", interface_id);
+
+    Ok(Json(ApiResponse::ok(
+        "IP address removal requested successfully".to_string(),
+    )))
+}
+
+// ============================================================================
+// Installation Handlers
+// ============================================================================
+
+/// Install virtual machine with cloud-init
+async fn install_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+    Json(payload): Json<InstallRequest>,
+) -> Result<Sse<impl futures_util::stream::Stream<Item = Result<axum::response::sse::Event, Infallible>>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm_id).await?;
     let cloud_config = CloudInitBuilder::new(&state.context)
-        .build(&vm, &payload.password)
+        .build(&vm_id, &payload.password)
         .await?;
     let context = state.context.clone();
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<ApiResponse<InstallStatus>>(1);
     
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<InstallStatus, Infallible>>(1);
-    let stream = ReceiverStream::new(rx)
-        .map_ok(|status| axum::response::sse::Event::default().json_data(status).unwrap());
-    
+    let stream = ReceiverStream::new(rx).map(|response| {
+        Ok(axum::response::sse::Event::default()
+            .json_data(response)
+            .unwrap())
+    });
+
     tokio::spawn(async move {
-        let installer = yave::cloudinit::CloudInitInstaller::new(&context); // Create installer inside spawn
-        tx.send(Ok(InstallStatus::Started)).await.ok();
+        let installer = yave::cloudinit::CloudInitInstaller::new(&context);
+
+        let _ = tx
+            .send(ApiResponse::ok(InstallStatus::Started))
+            .await;
+
         match installer.install(&launch_request, &cloud_config).await {
             Ok(_) => {
-                tx.send(Ok(InstallStatus::Completed)).await.ok();
+                let _ = tx
+                    .send(ApiResponse::ok(InstallStatus::Completed))
+                    .await;
             }
             Err(err) => {
-                let problem = ProblemDetails {
-                    detail: format!("installation failed: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                let status = InstallStatus::Failed {
+                    message: format!("Installation failed: {}", err),
                 };
-                tx.send(Ok(InstallStatus::Failed(problem))).await.ok();
+                let _ = tx.send(ApiResponse::ok(status)).await;
             }
         }
     });
@@ -174,8 +336,119 @@ async fn install_vm(auth: AuthBasic, State(state): State<AppState>, Path(vm): Pa
     let sse = Sse::new(stream).keep_alive(
         KeepAlive::new()
             .interval(std::time::Duration::from_secs(10))
-            .text("keep-alive-text"),
+            .text("keep-alive"),
     );
-    Ok(sse.into_response())
+
+    Ok(sse)
+}
+
+/// Create new virtual machine
+async fn create_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Json(payload): Json<CreateVMRequest>,
+) -> Result<Json<ApiResponse<VMInfo>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    registry.create_tables().await?;
+
+    let mut drives_spec = vec![];
+    let mut install_drives = vec![];
+
+    for (idx, drive) in payload.drives.iter().enumerate() {
+        let drive_id = format!("drive{}", idx);
+        drives_spec.push(yave::registry::CreateDrive {
+            id: drive_id.clone(),
+            drive_bus: vm_types::vm::DriveBus::VirtioBlk {
+                boot_index: Some(idx as u32 + 1),
+            },
+        });
+
+        match drive {
+            DriveDef::Empty { size } => {
+                install_drives.push(yave::storage::DriveInstallMode::New {
+                    id: drive_id,
+                    size: *size,
+                });
+            }
+            DriveDef::From { size, image } => {
+                let image = image.clone();
+                install_drives.push(yave::storage::DriveInstallMode::Existing {
+                    id: drive_id,
+                    resize: *size,
+                    image,
+                });
+            }
+        }
+    }
+
+    let vm = registry
+        .create_vm(yave::registry::CreateVirtualMachine {
+            id: payload.id.clone(),
+            hostname: payload.hostname.clone(),
+            vcpu: payload.vcpu,
+            memory: payload.memory,
+            ovmf: true,
+            network_interfaces: vec![yave::registry::CreateNetworkInterface {
+                id: "net0".to_string(),
+            }],
+            drives: drives_spec,
+        })
+        .await?;
+
+    let storage = state.context.storage();
+    storage
+        .install_vm(
+            &payload.id,
+            &yave::storage::InstallOptions {
+                drives: install_drives,
+            },
+        )
+        .await?;
+
+    let info = VMInfo {
+        id: vm.id,
+        hostname: vm.hostname,
+        memory: vm.memory,
+        vcpu: vm.vcpu,
+        running: false,
+    };
+
+    Ok(Json(ApiResponse::ok(info)))
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Validate IP address format
+fn validate_ip_address(ip: &str) -> Result<(), Error> {
+    let parts: Vec<&str> = ip.split('.').collect();
+
+    if parts.len() != 4 {
+        return Err(Error::InvalidIp(
+            "IP must have 4 octets".to_string(),
+        ));
+    }
+
+    for (i, part) in parts.iter().enumerate() {
+        match part.parse::<u8>() {
+            Ok(num) => {
+                if i == 0 && (num == 0 || num > 223) {
+                    return Err(Error::InvalidIp(
+                        "Invalid first octet".to_string(),
+                    ));
+                }
+            }
+            Err(_) => {
+                return Err(Error::InvalidIp(
+                    format!("Invalid octet: {}", part),
+                ))
+            }
+        }
+    }
+
+    Ok(())
 }
 

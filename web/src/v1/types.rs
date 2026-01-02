@@ -13,48 +13,82 @@ pub enum Error {
     Auth(#[from] auth::AuthError),
     #[error("Virtual machine error: {0}")]
     Yave(#[from] yave::Error),
+    #[error("Invalid IP address: {0}")]
+    InvalidIp(String),
+    #[error("Network interface not found")]
+    NetworkInterfaceNotFound,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ProblemDetails {
-    pub detail: String,
-    pub status: u16,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApiResponse<T: Serialize> {
+    pub success: bool,
+    pub data: Option<T>,
+    pub error: Option<ApiError>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApiError {
+    pub code: String,
+    pub message: String,
+    pub details: Option<String>,
+}
+
+impl<T: Serialize> ApiResponse<T> {
+    pub fn ok(data: T) -> Self {
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
+    }
+
+    pub fn error(code: String, message: String) -> Self {
+        Self {
+            success: false,
+            data: None,
+            error: Some(ApiError {
+                code,
+                message,
+                details: None,
+            }),
+        }
+    }
 }
 
 impl Error {
-    /// Convert error to problem details with appropriate HTTP status code
-    fn to_problem_details(&self) -> ProblemDetails {
+    /// Convert error to API response with appropriate HTTP status code
+    fn to_response(&self) -> (StatusCode, String) {
         match self {
-            Error::Auth(auth::AuthError::InvalidCreditinals) => {
-                ProblemDetails {
-                    detail: "Invalid credentials".to_string(),
-                    status: StatusCode::UNAUTHORIZED.as_u16(),
-                }
-            }
-            Error::Yave(yave::Error::VMNotFound) => {
-                ProblemDetails {
-                    detail: "Virtual machine not found".to_string(),
-                    status: StatusCode::NOT_FOUND.as_u16(),
-                }
-            }
-            Error::Yave(yave::Error::VMRunning) => {
-                ProblemDetails {
-                    detail: "Virtual machine is already running".to_string(),
-                    status: StatusCode::BAD_REQUEST.as_u16(),
-                }
-            }
-            Error::Yave(yave::Error::VMNotRunning(_)) => {
-                ProblemDetails {
-                    detail: "Virtual machine is not running".to_string(),
-                    status: StatusCode::BAD_REQUEST.as_u16(),
-                }
-            }
+            Error::Auth(auth::AuthError::InvalidCreditinals) => (
+                StatusCode::UNAUTHORIZED,
+                "INVALID_CREDENTIALS".to_string(),
+            ),
+            Error::Yave(yave::Error::VMNotFound) => (
+                StatusCode::NOT_FOUND,
+                "VM_NOT_FOUND".to_string(),
+            ),
+            Error::Yave(yave::Error::VMRunning) => (
+                StatusCode::CONFLICT,
+                "VM_ALREADY_RUNNING".to_string(),
+            ),
+            Error::Yave(yave::Error::VMNotRunning(_)) => (
+                StatusCode::BAD_REQUEST,
+                "VM_NOT_RUNNING".to_string(),
+            ),
+            Error::InvalidIp(_) => (
+                StatusCode::BAD_REQUEST,
+                "INVALID_IP_ADDRESS".to_string(),
+            ),
+            Error::NetworkInterfaceNotFound => (
+                StatusCode::NOT_FOUND,
+                "NETWORK_INTERFACE_NOT_FOUND".to_string(),
+            ),
             Error::Yave(err) => {
                 eprintln!("Unhandled Yave error: {err:?}");
-                ProblemDetails {
-                    detail: "Internal server error".to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                }
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR".to_string(),
+                )
             }
         }
     }
@@ -62,64 +96,105 @@ impl Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        let problem = self.to_problem_details();
-        let status = StatusCode::from_u16(problem.status)
-            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-        
-        let mut response = Json(problem).into_response();
-        *response.status_mut() = status;
-        response
+        let (status, code) = self.to_response();
+        let response = ApiResponse::<()>::error(code, self.to_string());
+
+        let mut http_response = Json(response).into_response();
+        *http_response.status_mut() = status;
+        http_response
     }
 }
 
 // ============================================================================
-// Request/Response Types
+// VM Types
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RunVMRequest {
-    pub vnc: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RunStatus {
-    pub is_running: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
-pub enum CreateDrive {
+pub enum DriveDef {
     #[serde(rename = "empty")]
-    Empty { size: u32 },
+    Empty {
+        size: u64,
+    },
     #[serde(rename = "from")]
     From {
-        size: Option<u32>,
+        size: u64,
         image: String,
-    },
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CreateVMRequest {
     pub id: String,
     pub hostname: String,
     pub memory: u32,
     pub vcpu: u32,
-    pub drives: Vec<CreateDrive>,
+    pub drives: Vec<DriveDef>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstallRequest {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VMInfo {
+    pub id: String,
     pub hostname: String,
+    pub memory: u32,
+    pub vcpu: u32,
+    pub running: bool,
+}
+
+// ============================================================================
+// Network Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NetworkInterface {
+    pub id: String,
+    pub ifname: String,
+    pub mac_address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AddIpRequest {
+    pub ip_address: String,
+    pub interface_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NetworkConfig {
+    pub interfaces: Vec<NetworkInterface>,
+}
+
+// ============================================================================
+// Installation Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InstallRequest {
     pub password: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InstallStatus {
     #[serde(rename = "started")]
     Started,
+    #[serde(rename = "in_progress")]
+    InProgress,
     #[serde(rename = "completed")]
     Completed,
     #[serde(rename = "failed")]
-    Failed(ProblemDetails),
+    Failed { message: String },
+}
+
+// ============================================================================
+// Runtime Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StartVMRequest {
+    pub vnc_password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VMRuntime {
+    pub is_running: bool,
+    pub vnc_port: Option<u16>,
 }

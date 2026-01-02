@@ -10,11 +10,11 @@ pub struct VmStorage {
 pub enum DriveInstallMode {
     New {
         id: String,
-        size: u32,
+        size: u64,
     },
     Existing {
         id: String,
-        resize: u32,
+        resize: u64,
         image: String,
     },
 }
@@ -39,7 +39,7 @@ impl VmStorage {
         std::fs::create_dir_all(&self.base)
     }
 
-    async fn create_drive_image(&self, path: &PathBuf, size: u32) -> Result<(), crate::Error> {
+    async fn create_drive_image(&self, path: &PathBuf, size: u64) -> Result<(), crate::Error> {
         let args = Img::new(&self.qemu_img.to_string_lossy())
             .create(qemu::base::ImgFormat::Raw, &path.to_string_lossy(), size)
             .build();
@@ -49,7 +49,7 @@ impl VmStorage {
         Ok(())
     }
 
-    async fn resize_drive_image(&self, path: &PathBuf, size: u32) -> Result<(), crate::Error> {
+    async fn resize_drive_image(&self, path: &PathBuf, size: u64) -> Result<(), crate::Error> {
         let args = Img::new(&self.qemu_img.to_string_lossy())
             .resize(&path.to_string_lossy(), size)
             .build();
