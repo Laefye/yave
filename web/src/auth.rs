@@ -29,25 +29,25 @@ impl ConversationAdapter for UsernamePassConvo {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum AuthError {
     #[error("Invalid creditinals")]
     InvalidCreditinals,
 }
 
-pub fn check(AuthBasic((username, password)): &AuthBasic, config: &Config) -> Result<(), Error> {
+pub fn check(AuthBasic((username, password)): &AuthBasic, config: &Config) -> Result<(), AuthError> {
     let mut txn = TransactionBuilder::new_with_service("common_auth")
         .username(username)
         .build(UsernamePassConvo {
             password: password.as_ref().map(String::to_string).unwrap_or("".to_string()),
             username: username.to_string(),
-        }.into_conversation()).map_err(|_| Error::InvalidCreditinals)?;
-    txn.authenticate(AuthnFlags::empty()).map_err(|_| Error::InvalidCreditinals)?;
-    txn.account_management(AuthnFlags::empty()).map_err(|_| Error::InvalidCreditinals)?;
+        }.into_conversation()).map_err(|_| AuthError::InvalidCreditinals)?;
+    txn.authenticate(AuthnFlags::empty()).map_err(|_| AuthError::InvalidCreditinals)?;
+    txn.account_management(AuthnFlags::empty()).map_err(|_| AuthError::InvalidCreditinals)?;
 
     let user = users::get_user_by_name(username).expect("Impossible error, if pam work");
     if let Some(groups) = user.groups() {
         if !groups.iter().fold(false, |acc, x| acc || config.api.groups.contains(&x.name().to_string_lossy().to_string())) {
-            return Err(Error::InvalidCreditinals);
+            return Err(AuthError::InvalidCreditinals);
         }
     }
     Ok(())
