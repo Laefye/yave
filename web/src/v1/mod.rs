@@ -25,21 +25,21 @@ pub fn router() -> Router<AppState> {
         // VMs endpoints
         .route("/vm", get(list_vms))
         .route("/vm", post(create_vm))
-        .route("/vm/:vm_id", get(get_vm_info))
-        .route("/vm/:vm_id", delete(delete_vm))
+        .route("/vm/{vm_id}", get(get_vm_info))
+        .route("/vm/{vm_id}", delete(delete_vm))
         
         // Runtime endpoints
-        .route("/vm/:vm_id/start", post(start_vm))
-        .route("/vm/:vm_id/stop", post(stop_vm))
-        .route("/vm/:vm_id/status", get(get_vm_status))
+        .route("/vm/{vm_id}/start", post(start_vm))
+        .route("/vm/{vm_id}/stop", post(stop_vm))
+        .route("/vm/{vm_id}/status", get(get_vm_status))
         
         // Network endpoints
-        .route("/vms/:vm_id/network", get(get_network_config))
-        .route("/vms/:vm_id/network/interfaces/:interface_id/ip", post(add_ip_address))
-        .route("/vms/:vm_id/network/interfaces/:interface_id/ip", delete(remove_ip_address))
+        .route("/vms/{vm_id}/network", get(get_network_config))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", post(add_ip_address))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", delete(remove_ip_address))
         
         // Installation endpoints
-        .route("/vms/:vm_id/install", post(install_vm))
+        .route("/vms/{vm_id}/install", post(install_vm))
 }
 
 
@@ -59,18 +59,13 @@ async fn list_vms(
 
     let mut vm_infos = vec![];
     for vm in vms {
-        let builder = VmLaunchRequestBuilder::new(&state.context);
-        if let Ok(launch_request) = builder.build(&vm.id).await {
-            let runtime = state.context.runtime();
-            let is_running = runtime.is_running(&launch_request).await.unwrap_or(false);
-            vm_infos.push(VMInfo {
-                id: vm.id,
-                hostname: vm.hostname,
-                memory: vm.memory,
-                vcpu: vm.vcpu,
-                running: is_running,
-            });
-        }
+        vm_infos.push(VMInfo {
+            id: vm.id,
+            hostname: vm.hostname,
+            memory: vm.memory,
+            vcpu: vm.vcpu,
+            vnc_display: vm.vnc_display,
+        });
     }
 
     Ok(Json(ApiResponse::ok(vm_infos)))
@@ -86,19 +81,13 @@ async fn get_vm_info(
 
     let registry = state.context.registry();
     let vm = registry.get_vm_by_id(&vm_id).await?;
-    let runtime = state.context.runtime();
-
-    let launch_request = VmLaunchRequestBuilder::new(&state.context)
-        .build(&vm_id)
-        .await?;
-    let is_running = runtime.is_running(&launch_request).await?;
 
     let info = VMInfo {
         id: vm.id,
         hostname: vm.hostname,
         memory: vm.memory,
         vcpu: vm.vcpu,
-        running: is_running,
+        vnc_display: vm.vnc_display,
     };
 
     Ok(Json(ApiResponse::ok(info)))
@@ -144,7 +133,6 @@ async fn start_vm(
 
     let status = VMRuntime {
         is_running: true,
-        vnc_port: launch_request.vnc.map(|x| 5900 + x.parse().unwrap_or(0)),
     };
 
     Ok(Json(ApiResponse::ok(status)))
@@ -166,7 +154,6 @@ async fn stop_vm(
 
     let status = VMRuntime {
         is_running: false,
-        vnc_port: None,
     };
 
     Ok(Json(ApiResponse::ok(status)))
@@ -187,7 +174,6 @@ async fn get_vm_status(
 
     let status = VMRuntime {
         is_running,
-        vnc_port: launch_request.vnc.map(|x| 5900 + x.parse().unwrap_or(0)),
     };
 
     Ok(Json(ApiResponse::ok(status)))
@@ -412,7 +398,7 @@ async fn create_vm(
         hostname: vm.hostname,
         memory: vm.memory,
         vcpu: vm.vcpu,
-        running: false,
+        vnc_display: vm.vnc_display,
     };
 
     Ok(Json(ApiResponse::ok(info)))

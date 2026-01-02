@@ -138,7 +138,7 @@ pub struct VMInfo {
     pub hostname: String,
     pub memory: u32,
     pub vcpu: u32,
-    pub running: bool,
+    pub vnc_display: String,
 }
 
 // ============================================================================
@@ -196,5 +196,4 @@ pub struct StartVMRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VMRuntime {
     pub is_running: bool,
-    pub vnc_port: Option<u16>,
 }
