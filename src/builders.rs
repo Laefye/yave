@@ -39,8 +39,6 @@ impl<'ctx> VmLaunchRequestBuilder<'ctx> {
                 id: nic.id.clone(),
                 ifname: nic.ifname.clone(),
                 mac: nic.mac_address.clone(),
-                netdev_up_script: Some(self.context.netdev_scripts().up.clone()),
-                netdev_down_script: Some(self.context.netdev_scripts().down.clone()),
             });
         }
         Ok(launch_request)

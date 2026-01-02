@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -37,9 +36,6 @@ pub struct NetworkConfig {
     pub id: String,
     pub mac: String,
     pub ifname: String,
-    // Может всё таки вынести в VmRuntime?
-    pub netdev_up_script: Option<PathBuf>,
-    pub netdev_down_script: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

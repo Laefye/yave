@@ -10,11 +10,13 @@ pub struct VmRuntime {
     run_dir: PathBuf,
     ovmf_code: PathBuf,
     ovmf_vars: PathBuf,
+    netdev_up_script: Option<PathBuf>,
+    netdev_down_script: Option<PathBuf>,
 }
 
 impl VmRuntime {
-    pub fn new(kvm: impl Into<PathBuf>, run_dir: impl Into<PathBuf>, ovmf_code: impl Into<PathBuf>, ovmf_vars: impl Into<PathBuf>) -> Self {
-        Self { kvm: kvm.into(), run_dir: run_dir.into(), ovmf_code: ovmf_code.into(), ovmf_vars: ovmf_vars.into() }
+    pub fn new(kvm: impl Into<PathBuf>, run_dir: impl Into<PathBuf>, ovmf_code: impl Into<PathBuf>, ovmf_vars: impl Into<PathBuf>, netdev_up_script: Option<PathBuf>, netdev_down_script: Option<PathBuf>) -> Self {
+        Self { kvm: kvm.into(), run_dir: run_dir.into(), ovmf_code: ovmf_code.into(), ovmf_vars: ovmf_vars.into(), netdev_up_script, netdev_down_script }
     }
 
     fn args(&self, vm_request: &VmLaunchRequest) -> Vec<String> {
@@ -46,7 +48,7 @@ impl VmRuntime {
             qemu = qemu.vnc(vnc_display, true);
         }
         for network in &vm_request.networks {
-            qemu = qemu.netdev_tap(&network.id, network.netdev_up_script.as_ref(), network.netdev_down_script.as_ref(), &network.ifname);
+            qemu = qemu.netdev_tap(&network.id, self.netdev_up_script.as_ref(), self.netdev_down_script.as_ref(), &network.ifname);
             qemu = qemu.network_device(&network.id, &network.mac);
         }
         qemu.build()

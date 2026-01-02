@@ -58,6 +58,12 @@ impl YaveContext {
     }
 
     pub fn runtime(&self) -> VmRuntime {
-        VmRuntime::new(&self.config.cli.bin, &self.run_path, &self.config.ovmf.code, &self.config.ovmf.vars)
+        VmRuntime::new(
+            &self.config.cli.bin,
+            &self.run_path,
+            &self.config.ovmf.code, &self.config.ovmf.vars,
+            Some(self.netdev_scripts.up.clone()),
+            Some(self.netdev_scripts.down.clone()),
+        )
     }
 }
