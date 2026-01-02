@@ -34,13 +34,13 @@ pub fn router() -> Router<AppState> {
         .route("/vm/{vm_id}/status", get(get_vm_status))
         
         // Network endpoints
-        .route("/vms/{vm_id}/network", get(get_network_config))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", get(get_ip_address))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", post(add_ip_address))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", delete(remove_ip_address))
+        .route("/vm/{vm_id}/network", get(get_network_config))
+        .route("/vm/{vm_id}/network/interfaces/{interface_id}/ipv4", get(get_ip_address))
+        .route("/vm/{vm_id}/network/interfaces/{interface_id}/ipv4", post(add_ip_address))
+        .route("/vm/{vm_id}/network/interfaces/{interface_id}/ipv4", delete(remove_ip_address))
         
         // Installation endpoints
-        .route("/vms/{vm_id}/install", post(install_vm))
+        .route("/vm/{vm_id}/install", post(install_vm))
 }
 
 
