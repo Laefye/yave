@@ -11,13 +11,13 @@ use futures_util::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use yave::builders::{CloudInitBuilder, VmLaunchRequestBuilder};
 
-use crate::{AppState, auth, v1::types::{DriveDef, IpAddressInfo}};
+use crate::{AppState, auth, v1::types::{DriveDef, IpV4AddressInfo}};
 mod types;
 
 pub use types::{
     Error, ApiResponse, CreateVMRequest, StartVMRequest,
     InstallRequest, InstallStatus, VMInfo, NetworkInterface, 
-    NetworkConfig, AddIpRequest, VMRuntime
+    NetworkConfig, AddIpV4Request, VMRuntime
 };
 
 pub fn router() -> Router<AppState> {
@@ -35,9 +35,9 @@ pub fn router() -> Router<AppState> {
         
         // Network endpoints
         .route("/vms/{vm_id}/network", get(get_network_config))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", get(get_ip_address))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", post(add_ip_address))
-        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", delete(remove_ip_address))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", get(get_ip_address))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", post(add_ip_address))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ipv4", delete(remove_ip_address))
         
         // Installation endpoints
         .route("/vms/{vm_id}/install", post(install_vm))
@@ -215,7 +215,7 @@ async fn add_ip_address(
     auth: AuthBasic,
     State(state): State<AppState>,
     Path((vm_id, interface_id)): Path<(String, String)>,
-    Json(payload): Json<AddIpRequest>,
+    Json(payload): Json<AddIpV4Request>,
 ) -> Result<Json<ApiResponse<NetworkInterface>>, Error> {
     auth::check(&auth, &state.context.config())?;
 
@@ -409,7 +409,7 @@ async fn get_ip_address(
     auth: AuthBasic,
     State(state): State<AppState>,
     Path((vm_id, interface_id)): Path<(String, String)>,
-) -> Result<Json<ApiResponse<Vec<IpAddressInfo>>>, Error> {
+) -> Result<Json<ApiResponse<Vec<IpV4AddressInfo>>>, Error> {
     auth::check(&auth, &state.context.config())?;
 
     let registry = state.context.registry();
@@ -424,7 +424,7 @@ async fn get_ip_address(
         .get_ipv4_by_ifname(&nic.ifname)
         .await?
         .into_iter()
-        .map(|ip_record| IpAddressInfo {
+        .map(|ip_record| IpV4AddressInfo {
             ip_address: ip_record.address,
             netmask: ip_record.netmask,
             gateway: ip_record.gateway,

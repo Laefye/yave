@@ -153,14 +153,14 @@ pub struct NetworkInterface {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AddIpRequest {
+pub struct AddIpV4Request {
     pub ip_address: String,
     pub netmask: u32,
     pub gateway: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct IpAddressInfo {
+pub struct IpV4AddressInfo {
     pub ip_address: String,
     pub netmask: u32,
     pub gateway: Option<String>,
