@@ -38,6 +38,8 @@ pub struct IPv4AddressRecord {
     pub address: String,
     pub ifname: String,
     pub netmask: u32,
+    pub gateway: Option<String>,
+    pub is_default: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +63,7 @@ pub struct AddIPv4Address {
     pub ifname: String,
     pub address: String,
     pub netmask: u32,
+    pub gateway: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -117,6 +120,8 @@ impl VmRegistry {
                 address TEXT PRIMARY KEY,
                 ifname TEXT NOT NULL,
                 netmask INTEGER NOT NULL,
+                gateway TEXT,
+                is_default BOOLEAN DEFAULT FALSE,
                 FOREIGN KEY(ifname) REFERENCES network_interfaces(ifname)
             );
             "#,
@@ -127,16 +132,19 @@ impl VmRegistry {
     }
 
     pub async fn add_ipv4_address(&self, addr: AddIPv4Address) -> Result<IPv4AddressRecord, crate::Error> {
+        let ipv4 = self.get_ipv4_by_ifname(&addr.ifname).await?;
         let record = sqlx::query_as::<_, IPv4AddressRecord>(
             r#"
-            INSERT INTO ipv4_addresses (address, ifname, netmask)
-            VALUES (?, ?, ?)
-            RETURNING address, ifname, netmask;
+            INSERT INTO ipv4_addresses (address, ifname, netmask, gateway, is_default)
+            VALUES (?, ?, ?, ?, ?)
+            RETURNING address, ifname, netmask, gateway, is_default;
             "#,
         )
             .bind(&addr.address)
             .bind(&addr.ifname)
             .bind(addr.netmask as i64)
+            .bind(&addr.gateway)
+            .bind(ipv4.is_empty())
             .fetch_one(&self.pool)
             .await?;
         Ok(record)
@@ -264,7 +272,7 @@ impl VmRegistry {
     async fn get_ipv4_by_ifname(&self, ifname: &str) -> Result<Vec<IPv4AddressRecord>, crate::Error> {
         let addrs = sqlx::query_as::<_, IPv4AddressRecord>(
             r#"
-            SELECT address, ifname, netmask FROM ipv4_addresses WHERE ifname = ?;
+            SELECT address, ifname, netmask, gateway, is_default FROM ipv4_addresses WHERE ifname = ?;
             "#,
         )
             .bind(ifname)

@@ -47,6 +47,8 @@ enum Commands {
         address: String,
         #[arg(short, long)]
         netmask: u32,
+        #[arg(short, long)]
+        gateway: Option<String>,
     },
     Run {
         #[arg(short, long)]
@@ -173,13 +175,14 @@ async fn main() {
             let vm = registry.get_vm_full(&name).await.expect("Error inspecting VM");
             println!("VM: {:?}", vm);
         },
-        Commands::Address { ifname, address, netmask } => {
+        Commands::Address { ifname, address, netmask, gateway } => {
             let context = DefaultYaveContext::create().await.expect("Error creating context");
             let registry = context.registry();
             registry.add_ipv4_address(AddIPv4Address {
                 ifname,
                 address,
                 netmask,
+                gateway,
             }).await.expect("Error adding address");
         },
     }

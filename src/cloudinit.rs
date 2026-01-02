@@ -1,8 +1,3 @@
-// pub struct Installer {
-//     vm: VirtualMachineContext,
-//     cloud_config: CloudConfig,
-// }
-
 use std::path::Path;
 
 use tokio::process::Command;

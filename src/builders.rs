@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use vm_types::{cloudinit::{ChpasswdUser, CloudInit, PowerState, PresetNetworkConfig}, vm::{DriveConfig, NetworkConfig, VmLaunchRequest}};
+use vm_types::{cloudinit::{ChpasswdUser, CloudInit, EthernetConfig, MatchInterface, PowerState, PresetNetworkConfig, RouteConfig}, vm::{DriveConfig, NetworkConfig, VmLaunchRequest}};
 
 use crate::{context::YaveContext, registry::{IPv4AddressRecord, NetworkInterfaceRecord}};
 
@@ -63,11 +63,24 @@ impl<'ctx> CloudInitBuilder<'ctx> {
             for addr in ipv4s.iter().filter(|a| a.ifname == nic.ifname) {
                 addresses.push(format!("{}/{}", addr.address, addr.netmask));
             }
-            interfaces.insert(nic.id.clone(), vm_types::cloudinit::EthernetConfig {
-                match_interface: vm_types::cloudinit::MatchInterface {
+            let default_ip = ipv4s.iter().find(|a| a.ifname == nic.ifname && a.is_default);
+            interfaces.insert(nic.id.clone(), EthernetConfig {
+                match_interface: MatchInterface {
                     macaddress: nic.mac_address.clone(),
                 },
                 addresses,
+                routes: match default_ip {
+                    Some(default_ipv4) => match &default_ipv4.gateway {
+                        Some(gateway) => Some(vec![
+                            RouteConfig {
+                                to: "default".to_string(),
+                                via: gateway.clone(),
+                            },
+                        ]),
+                        None => None,
+                    },
+                    None => None,
+                },
             });
         }
         PresetNetworkConfig {

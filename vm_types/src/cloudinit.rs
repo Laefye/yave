@@ -31,10 +31,17 @@ pub struct MatchInterface {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteConfig {
+    pub to: String,
+    pub via: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EthernetConfig {
     #[serde(rename = "match")]    
     pub match_interface: MatchInterface,
     pub addresses: Vec<String>,
+    pub routes: Option<Vec<RouteConfig>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +54,6 @@ pub struct PresetNetworkConfig {
     pub version: u8,
     pub ethernets: HashMap<String, EthernetConfig>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserDataCloudInit {
