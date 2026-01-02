@@ -155,7 +155,16 @@ pub struct NetworkInterface {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddIpRequest {
     pub ip_address: String,
-    pub interface_id: Option<String>,
+    pub netmask: u32,
+    pub gateway: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IpAddressInfo {
+    pub ip_address: String,
+    pub netmask: u32,
+    pub gateway: Option<String>,
+    pub is_default: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

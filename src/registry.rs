@@ -268,7 +268,7 @@ impl VmRegistry {
         Ok(drives)
     }
 
-    async fn get_ipv4_by_ifname(&self, ifname: &str) -> Result<Vec<IPv4AddressRecord>, crate::Error> {
+    pub async fn get_ipv4_by_ifname(&self, ifname: &str) -> Result<Vec<IPv4AddressRecord>, crate::Error> {
         let addrs = sqlx::query_as::<_, IPv4AddressRecord>(
             r#"
             SELECT address, ifname, netmask, gateway, is_default FROM ipv4_addresses WHERE ifname = ?;

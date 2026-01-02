@@ -11,7 +11,7 @@ use futures_util::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use yave::builders::{CloudInitBuilder, VmLaunchRequestBuilder};
 
-use crate::{AppState, auth, v1::types::DriveDef};
+use crate::{AppState, auth, v1::types::{DriveDef, IpAddressInfo}};
 mod types;
 
 pub use types::{
@@ -35,6 +35,7 @@ pub fn router() -> Router<AppState> {
         
         // Network endpoints
         .route("/vms/{vm_id}/network", get(get_network_config))
+        .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", get(get_ip_address))
         .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", post(add_ip_address))
         .route("/vms/{vm_id}/network/interfaces/{interface_id}/ip", delete(remove_ip_address))
         
@@ -233,8 +234,8 @@ async fn add_ip_address(
     registry.add_ipv4_address(yave::registry::AddIPv4Address {
         ifname: nic.ifname.clone(),
         address: payload.ip_address.clone(),
-        netmask: 24,
-        gateway: None,
+        netmask: payload.netmask,
+        gateway: payload.gateway.clone(),
     }).await?;
 
     let result = NetworkInterface {
@@ -402,6 +403,36 @@ async fn create_vm(
     };
 
     Ok(Json(ApiResponse::ok(info)))
+}
+
+async fn get_ip_address(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path((vm_id, interface_id)): Path<(String, String)>,
+) -> Result<Json<ApiResponse<Vec<IpAddressInfo>>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    let nic_records = registry.get_network_interfaces_by_vm_id(&vm_id).await?;
+
+    let nic = nic_records
+        .into_iter()
+        .find(|ni| ni.id == interface_id)
+        .ok_or(Error::NetworkInterfaceNotFound)?;
+
+    let ip_addresses = registry
+        .get_ipv4_by_ifname(&nic.ifname)
+        .await?
+        .into_iter()
+        .map(|ip_record| IpAddressInfo {
+            ip_address: ip_record.address,
+            netmask: ip_record.netmask,
+            gateway: ip_record.gateway,
+            is_default: ip_record.is_default,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::ok(ip_addresses)))
 }
 
 // ============================================================================
