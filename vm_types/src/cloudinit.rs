@@ -37,11 +37,17 @@ pub struct RouteConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Nameservers {
+    pub addresses: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EthernetConfig {
     #[serde(rename = "match")]    
     pub match_interface: MatchInterface,
     pub addresses: Vec<String>,
     pub routes: Option<Vec<RouteConfig>>,
+    pub nameservers: Option<Nameservers>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

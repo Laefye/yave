@@ -93,8 +93,9 @@ impl<'ctx> CloudInitInstaller<'ctx> {
             )
             .await?;
         log::debug!(
-            "Created Cloud Init ISO at {:?}",
-            cloudiso.output_iso_path()
+            "Created Cloud Init ISO at {:?} with config {:?}",
+            cloudiso.output_iso_path(),
+            cloud_config
         );
         Ok(cloudiso)
     }

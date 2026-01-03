@@ -54,6 +54,7 @@ pub struct Config {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Network {
     pub default_bridge: Option<String>,
+    pub nameservers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

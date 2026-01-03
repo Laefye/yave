@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use vm_types::{cloudinit::{ChpasswdUser, CloudInit, EthernetConfig, MatchInterface, PowerState, PresetNetworkConfig, RouteConfig}, vm::{DriveConfig, NetworkConfig, VmLaunchRequest}};
+use vm_types::{cloudinit::{ChpasswdUser, CloudInit, EthernetConfig, MatchInterface, Nameservers, PowerState, PresetNetworkConfig, RouteConfig}, vm::{DriveConfig, NetworkConfig, VmLaunchRequest}};
 
 use crate::{context::YaveContext, registry::{IPv4AddressRecord, NetworkInterfaceRecord}};
 
@@ -77,6 +77,12 @@ impl<'ctx> CloudInitBuilder<'ctx> {
                         ]),
                         None => None,
                     },
+                    None => None,
+                },
+                nameservers: match default_ip {
+                    Some(_) => Some(Nameservers {
+                        addresses: self.context.config().network.nameservers.clone(),
+                    }),
                     None => None,
                 },
             });
