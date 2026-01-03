@@ -173,7 +173,7 @@ impl StreamLoop {
                                 callback.send(response).map_err(|_| Error::ChannelClosed)?;
                             }
                         },
-                        Response::Event(event) => {
+                        Response::Event(_event) => {
                             // Currently ignoring events
                         },
                     }

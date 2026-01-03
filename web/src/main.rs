@@ -11,6 +11,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let context = DefaultYaveContext::create().await.expect("Error creating context");
     let app = Router::new()
         .nest("/v1/", v1::router())

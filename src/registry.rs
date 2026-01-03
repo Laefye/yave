@@ -213,6 +213,7 @@ impl VmRegistry {
             .bind(self.find_free_vnc_display().await?.unwrap())
             .fetch_one(&self.pool)
             .await?;
+        log::debug!("Created VM record: {:?}", vm_record);
         for net in &vm.network_interfaces {
             let ifname = self.find_free_ifname().await?;
             sqlx::query(
@@ -228,6 +229,7 @@ impl VmRegistry {
                 .execute(&self.pool)
                 .await?;
         }
+        log::debug!("Added network interfaces for VM {}", vm.id);
         for drive in &vm.drives {
             sqlx::query(
                 r#"
@@ -240,6 +242,7 @@ impl VmRegistry {
                 .bind(serde_json::to_string(&drive.drive_bus)?)
                 .execute(&self.pool)
                 .await?;
+            log::debug!("Added drive {} for VM {}", drive.id, vm.id);
         }
         Ok(vm_record)
     }
@@ -329,6 +332,7 @@ impl VmRegistry {
             .bind(vm_id)
             .execute(&self.pool)
             .await?;
+        log::debug!("Deleted VM {}", vm_id);
         Ok(())
     }
 }

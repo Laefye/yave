@@ -71,12 +71,15 @@ impl VmStorage {
                 DriveInstallMode::New { id, size } => {
                     let drive_path = vm_path.join(id).with_added_extension("img");
                     self.create_drive_image(&drive_path, *size).await?;
+                    log::debug!("Created new drive image at {:?}", drive_path);
                 }
                 DriveInstallMode::Existing { id, resize, image } => {
                     let drive_path = vm_path.join(id).with_added_extension("img");
                     std::fs::copy(self.get_image_path(image), &drive_path)?;
+                    log::debug!("Copied existing drive image to {:?}", drive_path);
                     if *resize > 0 {
                         self.resize_drive_image(&drive_path, *resize).await?;
+                        log::debug!("Resized drive image at {:?} to {}", drive_path, resize);
                     }
                 }
             }

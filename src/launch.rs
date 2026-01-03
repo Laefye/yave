@@ -59,19 +59,23 @@ impl VmRuntime {
         let mut command = tokio::process::Command::new(&args[0]);
         command.args(&args[1..]);
         command.status().await?;
+        log::debug!("Launched VM with params {:?} (args: {:?})", vm_request, args);
         Ok(())
     }
 
     pub async fn shutdown_vm(&self, vm_request: &VmLaunchRequest) -> Result<(), Error> {
+        log::debug!("Shutting down VM {}", vm_request.id);
         let mut qmp = self.qmp_connect(vm_request).await?;
         qmp.invoke(qmp::types::InvokeCommand::quit()).await?;
         qmp.on_close().await?;
+        log::debug!("Shutdown command sent to VM {}", vm_request.id);
         Ok(())
     }
 
     pub async fn reboot_vm(&self, vm_request: &VmLaunchRequest) -> Result<(), Error> {
         let qmp = self.qmp_connect(vm_request).await?;
         qmp.invoke(qmp::types::InvokeCommand::reboot()).await?;
+        log::debug!("Reboot command sent to VM {}", vm_request.id);
         Ok(())
     }
 

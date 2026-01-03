@@ -92,6 +92,10 @@ impl<'ctx> CloudInitInstaller<'ctx> {
                 "cidata",
             )
             .await?;
+        log::debug!(
+            "Created Cloud Init ISO at {:?}",
+            cloudiso.output_iso_path()
+        );
         Ok(cloudiso)
     }
 
@@ -116,10 +120,13 @@ impl<'ctx> CloudInitInstaller<'ctx> {
         });
         let runtime = self.yave_context.runtime();
         runtime.run_vm(&launch_request).await?;
+        log::debug!(
+            "Launched VM with Cloud Init ISO with params {:?}",
+            launch_request
+        );
         let mut qmp = runtime.qmp_connect(&launch_request).await?;
         #[cfg(debug_assertions)]
         {
-            println!("Cloud Init ISO {:?}", iso.output_iso_path().to_string_lossy());
             use qmp::types::InvokeCommand;
 
             qmp.invoke(InvokeCommand::set_vnc_password("12345678")).await?;
