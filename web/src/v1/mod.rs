@@ -103,8 +103,19 @@ async fn delete_vm(
 ) -> Result<Json<ApiResponse<String>>, Error> {
     auth::check(&auth, &state.context.config())?;
 
-    let message = format!("Virtual machine '{}' deleted", vm_id);
-    Ok(Json(ApiResponse::ok(message)))
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm_id).await?;
+    let runtime = state.context.runtime();
+    if runtime.is_running(&launch_request).await? {
+        runtime.shutdown_vm(&launch_request).await?;
+    }
+    let storage = state.context.storage();
+    storage.delete_vm(&vm_id).await?;
+    let registry = state.context.registry();
+    registry.delete_vm(&vm_id).await?;
+    Ok(Json(ApiResponse::ok(
+        "VM deleted successfully".to_string(),
+    )))
 }
 
 // ============================================================================
