@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use qmp::types::InvokeCommand;
 use vm_types::vm::DriveBus;
-use yave::{DefaultYaveContext, builders::CloudInitBuilder, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{AddIPv4Address, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
+use yave::{DefaultYaveContext, builders::{CloudInitBuilder, VmLaunchRequestBuilder}, cloudinit::CloudInitInstaller, net::NetworkManager, registry::{AddIPv4Address, CreateDrive, CreateNetworkInterface, CreateVirtualMachine}, storage::{DriveInstallMode, InstallOptions}};
 
 
 #[derive(Parser, Debug)]
@@ -69,7 +69,11 @@ enum Commands {
         ifname: String,
         #[command(subcommand)]
         command: NetdevCommand,
-    }
+    },
+    Delete {
+        #[arg(short, long)]
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -183,6 +187,19 @@ async fn main() {
                 netmask,
                 gateway,
             }).await.expect("Error adding address");
+        },
+        Commands::Delete { name } => {
+            let context = DefaultYaveContext::create().await.expect("Error creating context");
+            let builder = VmLaunchRequestBuilder::new(&context);
+            let launch_request = builder.build(&name).await.expect("Error building launch request");
+            let runtime = context.runtime();
+            if runtime.is_running(&launch_request).await.expect("Error checking if VM is running") {
+                runtime.shutdown_vm(&launch_request).await.expect("Error shutting down VM");
+            }
+            let storage = context.storage();
+            storage.delete_vm(&name).await.expect("Error deleting VM");
+            let registry = context.registry();
+            registry.delete_vm(&name).await.expect("Error deleting VM from registry");
         },
     }
 

@@ -83,5 +83,13 @@ impl VmStorage {
         }
         Ok(())
     }
+
+    pub async fn delete_vm(&self, vm_id: &str) -> Result<(), crate::Error> {
+        let vm_path = self.path_for_vm(vm_id);
+        if vm_path.exists() {
+            tokio::fs::remove_dir_all(vm_path).await?;
+        }
+        Ok(())
+    }
 }
 

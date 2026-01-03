@@ -107,13 +107,13 @@ impl VmRegistry {
                 vm_id TEXT NOT NULL,
                 id TEXT NOT NULL,
                 mac_address TEXT NOT NULL,
-                FOREIGN KEY(vm_id) REFERENCES virtual_machines(id)
+                FOREIGN KEY(vm_id) REFERENCES virtual_machines(id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS drives (
                 vm_id TEXT NOT NULL,
                 id TEXT NOT NULL,
                 drive_bus TEXT NOT NULL,
-                FOREIGN KEY(vm_id) REFERENCES virtual_machines(id)
+                FOREIGN KEY(vm_id) REFERENCES virtual_machines(id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS ipv4_addresses (
                 address TEXT PRIMARY KEY,
@@ -121,7 +121,7 @@ impl VmRegistry {
                 netmask INTEGER NOT NULL,
                 gateway TEXT,
                 is_default BOOLEAN DEFAULT FALSE,
-                FOREIGN KEY(ifname) REFERENCES network_interfaces(ifname)
+                FOREIGN KEY(ifname) REFERENCES network_interfaces(ifname) ON DELETE CASCADE
             );
             "#,
         )
@@ -318,6 +318,18 @@ impl VmRegistry {
             .await?;
         let vm_record = vm_record.ok_or(crate::Error::VMNotFound)?;
         Ok(vm_record)
+    }
+
+    pub async fn delete_vm(&self, vm_id: &str) -> Result<(), crate::Error> {
+        sqlx::query(
+            r#"
+            DELETE FROM virtual_machines WHERE id = ?;
+            "#,
+        )
+            .bind(vm_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
 
