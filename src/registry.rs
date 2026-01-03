@@ -198,6 +198,21 @@ impl VmRegistry {
         Err(crate::Error::NoFreeIfname)
     }
 
+    async fn insert_drive(&self, vm_id: &str, drive: &CreateDrive) -> Result<(), crate::Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO drives (vm_id, id, drive_bus)
+            VALUES (?, ?, ?);
+            "#,
+        )
+            .bind(vm_id)
+            .bind(&drive.id)
+            .bind(serde_json::to_string(&drive.drive_bus)?)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn create_vm(&self, vm: CreateVirtualMachine) -> Result<VirtualMachineRecord, crate::Error> {
         let vm_record = sqlx::query_as::<_, VirtualMachineRecord>(
             r#"
@@ -231,17 +246,7 @@ impl VmRegistry {
         }
         log::debug!("Added network interfaces for VM {}", vm.id);
         for drive in &vm.drives {
-            sqlx::query(
-                r#"
-                INSERT INTO drives (vm_id, id, drive_bus)
-                VALUES (?, ?, ?);
-                "#,
-            )
-                .bind(&vm.id)
-                .bind(&drive.id)
-                .bind(serde_json::to_string(&drive.drive_bus)?)
-                .execute(&self.pool)
-                .await?;
+            self.insert_drive(&vm.id, drive).await?;
             log::debug!("Added drive {} for VM {}", drive.id, vm.id);
         }
         Ok(vm_record)
@@ -259,7 +264,7 @@ impl VmRegistry {
         vm_record.ok_or(crate::Error::VMNotFound)
     }
 
-    async fn get_drives_by_vm_id(&self, vm_id: &str) -> Result<Vec<DriveRecord>, crate::Error> {
+    pub async fn get_drives_by_vm_id(&self, vm_id: &str) -> Result<Vec<DriveRecord>, crate::Error> {
         let drives = sqlx::query_as::<_, DriveRecord>(
             r#"
             SELECT vm_id, id, drive_bus FROM drives WHERE vm_id = ?;
@@ -333,6 +338,22 @@ impl VmRegistry {
             .execute(&self.pool)
             .await?;
         log::debug!("Deleted VM {}", vm_id);
+        Ok(())
+    }
+
+    pub async fn replace_drives(&self, vm_id: &str, drives: Vec<CreateDrive>) -> Result<(), crate::Error> {
+        sqlx::query(
+            r#"
+            DELETE FROM drives WHERE vm_id = ?;
+            "#,
+        )
+            .bind(vm_id)
+            .execute(&self.pool)
+            .await?;
+        for drive in &drives {
+            self.insert_drive(vm_id, drive).await?;
+        }
+        log::debug!("Replaced drives for VM {}", vm_id);
         Ok(())
     }
 }

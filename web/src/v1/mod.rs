@@ -40,6 +40,9 @@ pub fn router() -> Router<AppState> {
         .route("/vm/{vm_id}/network/interfaces/{interface_id}/ipv4", post(add_ip_address))
         .route("/vm/{vm_id}/network/interfaces/{interface_id}/ipv4", delete(remove_ip_address))
         
+        // Drives endpoints
+        .route("/vm/{vm_id}/drives", post(reinstall_drives))
+
         // Installation endpoints
         .route("/vm/{vm_id}/install", post(install_vm))
 }
@@ -464,6 +467,69 @@ async fn get_ip_address(
         .collect();
 
     Ok(Json(ApiResponse::ok(ip_addresses)))
+}
+
+// ============================================================================
+// Drive Handlers
+// ============================================================================
+
+async fn reinstall_drives(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+    Json(payload): Json<Vec<DriveDef>>,
+) -> Result<Json<ApiResponse<()>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+
+    let registry = state.context.registry();
+    let vm = registry.get_vm_by_id(&vm_id).await?;
+
+    let storage = state.context.storage();
+    let mut spec_drives = vec![];
+    let mut install_drives = vec![];
+
+    for (idx, drive) in payload.iter().enumerate() {
+        let drive_id = format!("drive{}", idx);
+
+        spec_drives.push(yave::registry::CreateDrive {
+            id: drive_id.clone(),
+            drive_bus: vm_types::vm::DriveBus::VirtioBlk {
+                boot_index: Some(idx as u32 + 1),
+            },
+        });
+
+        match drive {
+            DriveDef::Empty { size } => {
+                install_drives.push(yave::storage::DriveInstallMode::New {
+                    id: drive_id,
+                    size: *size,
+                });
+            }
+            DriveDef::From { size, image } => {
+                let image = image.clone();
+                install_drives.push(yave::storage::DriveInstallMode::Existing {
+                    id: drive_id,
+                    resize: *size,
+                    image,
+                });
+            }
+        }
+    }
+
+    registry
+        .replace_drives(&vm.id, spec_drives)
+        .await?;
+
+    storage
+        .install_vm(
+            &vm_id,
+            &yave::storage::InstallOptions {
+                drives: install_drives,
+            },
+        )
+        .await?;
+
+    Ok(Json(ApiResponse::ok(())))
 }
 
 // ============================================================================
