@@ -31,6 +31,7 @@ pub fn router() -> Router<AppState> {
         // Runtime endpoints
         .route("/vm/{vm_id}/start", post(start_vm))
         .route("/vm/{vm_id}/stop", post(stop_vm))
+        .route("/vm/{vm_id}/reboot", post(reboot_vm))
         .route("/vm/{vm_id}/status", get(get_vm_status))
         
         // Network endpoints
@@ -155,6 +156,25 @@ async fn stop_vm(
 
     let status = VMRuntime {
         is_running: false,
+    };
+
+    Ok(Json(ApiResponse::ok(status)))
+}
+
+/// Restart virtual machine
+async fn reboot_vm(
+    auth: AuthBasic,
+    State(state): State<AppState>,
+    Path(vm_id): Path<String>,
+) -> Result<Json<ApiResponse<VMRuntime>>, Error> {
+    auth::check(&auth, &state.context.config())?;
+    let builder = VmLaunchRequestBuilder::new(&state.context);
+    let launch_request = builder.build(&vm_id).await?;
+    let runtime = state.context.runtime();
+    runtime.reboot_vm(&launch_request).await?;
+
+    let status = VMRuntime {
+        is_running: true,
     };
 
     Ok(Json(ApiResponse::ok(status)))
