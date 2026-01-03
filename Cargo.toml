@@ -20,6 +20,7 @@ nix = "0.30.1"
 tempfile = "3.24.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 md-5 = "0.10.6"
+log = "0.4.29"
 
 [workspace]
 members = ["cli", "qmp", "qemu", "nft", "vm_types", "web"]
